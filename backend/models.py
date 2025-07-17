@@ -29,6 +29,8 @@ class QueryMetrics(BaseModel):
     temp_blks_written: Optional[int] = Field(None, description="Temporary blocks written")
     blk_read_time: Optional[float] = Field(None, description="Time spent reading blocks")
     blk_write_time: Optional[float] = Field(None, description="Time spent writing blocks")
+    performance_score: Optional[int] = Field(None, ge=0, le=100, description="Performance score (0-100)")
+    time_percentage: Optional[float] = Field(None, description="Percentage of total database time")
     
     model_config = ConfigDict(from_attributes=True)
 

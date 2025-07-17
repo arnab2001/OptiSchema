@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 from fastapi import APIRouter
 
 from config import settings
-from db import create_pool, close_pool, health_check as db_health_check
+from db import initialize_database, close_pool, health_check as db_health_check
 from models import HealthCheck, WebSocketMessage, APIResponse
 from collector import poll_pg_stat, get_metrics_cache
 from analysis.pipeline import start_analysis_scheduler
@@ -40,8 +40,12 @@ async def lifespan(app: FastAPI):
     
     # Initialize database connection pool
     try:
-        await create_pool()
-        logger.info("✅ Database connection pool initialized")
+        success = await initialize_database()
+        if success:
+            logger.info("✅ Database connection pool initialized")
+        else:
+            logger.error("❌ Failed to initialize database connection pool")
+            raise Exception("Database initialization failed")
     except Exception as e:
         logger.error(f"❌ Failed to initialize database connection pool: {e}")
         raise
@@ -112,11 +116,13 @@ app.add_middleware(
 
 # Import routers
 from routers import metrics_router, suggestions_router, analysis_router
+from routers import connection
 
 # Include routers
 app.include_router(metrics_router)
 app.include_router(suggestions_router)
 app.include_router(analysis_router)
+app.include_router(connection.router, prefix="/api/connection", tags=["connection"])
 
 
 @app.get("/")
@@ -209,7 +215,7 @@ async def http_exception_handler(request, exc):
 
 
 # Import and include routers (we'll create these in the next steps)
-# from routers import metrics, suggestions, analysis
+# from routers import metrics, suggestions, analysis, connection
 # app.include_router(metrics.router, prefix="/api/metrics", tags=["metrics"])
 # app.include_router(suggestions.router, prefix="/api/suggestions", tags=["suggestions"])
 # app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])

@@ -1,153 +1,104 @@
-.PHONY: help dev demo clean logs build test lint format setup
+# OptiSchema Makefile
+# Commands for development, demo, and sandbox operations
 
-# Default target
-help:
-	@echo "🚀 OptiSchema MVP - Available Commands"
-	@echo ""
-	@echo "Development:"
-	@echo "  make dev      - Start development stack with hot-reload"
-	@echo "  make demo     - Seed demo data and start the application"
-	@echo "  make build    - Build all Docker images"
-	@echo "  make test     - Run tests"
-	@echo ""
-	@echo "Maintenance:"
-	@echo "  make clean    - Stop and clean all containers and volumes"
-	@echo "  make logs     - View logs from all services"
-	@echo "  make lint     - Run linting"
-	@echo "  make format   - Format code"
-	@echo ""
-	@echo "Setup:"
-	@echo "  make setup    - Initial setup (copy .env.example to .env)"
-	@echo ""
+.PHONY: help dev demo sandbox seed replay clean logs
 
-# Development commands
-dev:
-	@echo "🚀 Starting OptiSchema development stack..."
-	@docker compose up --build -d
-	@echo "✅ Development stack started!"
-	@echo "📊 Frontend: http://localhost:3000"
-	@echo "🔧 Backend API: http://localhost:8000"
-	@echo "📚 API Docs: http://localhost:8000/docs"
-	@echo "🗄️  Database: localhost:5432"
+help: ## Show this help message
+	@echo "OptiSchema - AI-Powered PostgreSQL Optimization"
 	@echo ""
-	@echo "💡 Use 'make logs' to view logs or 'make clean' to stop"
+	@echo "Available commands:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
-demo:
-	@echo "🎭 Starting OptiSchema with demo data..."
-	@docker compose up --build -d
+dev: ## Start development environment (main app)
+	@echo "🚀 Starting OptiSchema development environment..."
+	docker compose up -d
+	@echo "✅ Development environment started!"
+	@echo "📊 Dashboard: http://localhost:3000/dashboard"
+	@echo "🔧 API: http://localhost:8000/health"
+
+demo: ## Start demo environment with seeded data
+	@echo "🎭 Starting OptiSchema demo environment..."
+	docker compose up -d
 	@echo "⏳ Waiting for services to be ready..."
-	@sleep 10
+	@sleep 15
 	@echo "🌱 Seeding demo data..."
-	@docker compose exec optischema-api python scripts/seed_data.py || echo "⚠️  Demo data seeding failed (backend not ready yet)"
-	@echo "✅ Demo started!"
-	@echo "📊 Frontend: http://localhost:3000"
-	@echo "🔧 Backend API: http://localhost:8000"
-	@echo "📚 API Docs: http://localhost:8000/docs"
+	docker compose exec optischema-api python /scripts/seed_data.py
+	@echo "✅ Demo environment ready!"
+	@echo "📊 Dashboard: http://localhost:3000/dashboard"
+	@echo "🔧 API: http://localhost:8000/health"
 
-# Build commands
-build:
-	@echo "🔨 Building OptiSchema Docker images..."
-	@docker compose build
-	@echo "✅ Build complete!"
+sandbox: ## Start sandbox environment for testing patches
+	@echo "🧪 Starting OptiSchema sandbox environment..."
+	docker compose -f docker-compose.sandbox.yml up -d
+	@echo "✅ Sandbox environment started!"
+	@echo "🔧 Sandbox API: http://localhost:8001/health"
+	@echo "🗄️  Sandbox DB: localhost:5433"
 
-# Testing commands
-test:
-	@echo "🧪 Running tests..."
-	@docker compose exec optischema-api python -m pytest tests/ || echo "⚠️  Backend tests failed (backend not running)"
-	@echo "✅ Tests complete!"
+seed: ## Seed demo data into existing database
+	@echo "🌱 Seeding demo data..."
+	docker compose exec optischema-api python /scripts/seed_data.py
 
-# Linting and formatting
-lint:
-	@echo "🔍 Running linting..."
-	@docker compose exec optischema-api python -m flake8 . || echo "⚠️  Backend linting failed (backend not running)"
-	@docker compose exec optischema-ui npm run lint || echo "⚠️  Frontend linting failed (frontend not running)"
-	@echo "✅ Linting complete!"
+replay: ## Start query replay for continuous demo data
+	@echo "🎭 Starting query replay..."
+	docker compose exec optischema-api python /scripts/replay.py
 
-format:
-	@echo "🎨 Formatting code..."
-	@docker compose exec optischema-api python -m black . || echo "⚠️  Backend formatting failed (backend not running)"
-	@docker compose exec optischema-ui npm run format || echo "⚠️  Frontend formatting failed (frontend not running)"
-	@echo "✅ Formatting complete!"
+replay-background: ## Start query replay in background
+	@echo "🎭 Starting query replay in background..."
+	docker compose exec -d optischema-api python /scripts/replay.py
 
-# Maintenance commands
-clean:
-	@echo "🧹 Cleaning up OptiSchema..."
-	@docker compose down -v --remove-orphans
-	@docker system prune -f
-	@echo "✅ Cleanup complete!"
+stop-replay: ## Stop query replay
+	@echo "🛑 Stopping query replay..."
+	docker compose exec optischema-api pkill -f replay.py || true
 
-logs:
-	@echo "📋 Showing OptiSchema logs..."
-	@docker compose logs -f
+clean: ## Stop and clean all containers and volumes
+	@echo "🧹 Cleaning up..."
+	docker compose down -v
+	docker compose -f docker-compose.sandbox.yml down -v
+	docker system prune -f
+	@echo "✅ Cleanup completed!"
 
-# Setup commands
-setup:
-	@echo "⚙️  Setting up OptiSchema..."
-	@if [ ! -f .env ]; then \
-		cp .env.example .env; \
-		echo "✅ Created .env from .env.example"; \
-		echo "⚠️  Please edit .env with your OpenAI API key"; \
-	else \
-		echo "✅ .env already exists"; \
-	fi
-	@echo "✅ Setup complete!"
+logs: ## Show logs from all services
+	docker compose logs -f
 
-# Database commands
-db-reset:
-	@echo "🗄️  Resetting database..."
-	@docker compose down postgres
-	@docker volume rm optischema_pgdata || true
-	@docker compose up -d postgres
-	@echo "✅ Database reset complete!"
+logs-api: ## Show API logs
+	docker compose logs -f optischema-api
 
-db-shell:
-	@echo "🐘 Opening PostgreSQL shell..."
-	@docker compose exec postgres psql -U optischema -d optischema
+logs-ui: ## Show UI logs
+	docker compose logs -f optischema-ui
 
-# Sandbox commands
-sandbox:
-	@echo "🧪 Starting sandbox environment..."
-	@docker compose --profile sandbox up -d postgres_sandbox
-	@echo "✅ Sandbox started on localhost:5433"
+logs-db: ## Show database logs
+	docker compose logs -f postgres
 
-sandbox-shell:
-	@echo "🐘 Opening sandbox PostgreSQL shell..."
-	@docker compose exec postgres_sandbox psql -U sandbox -d sandbox
-
-# Health checks
-health:
-	@echo "🏥 Checking service health..."
-	@echo "Backend API:"
-	@curl -f http://localhost:8000/health || echo "❌ Backend not responding"
+status: ## Show status of all services
+	@echo "📊 OptiSchema Service Status:"
+	docker compose ps
 	@echo ""
-	@echo "Frontend:"
-	@curl -f http://localhost:3000 || echo "❌ Frontend not responding"
-	@echo ""
-	@echo "Database:"
-	@docker compose exec postgres pg_isready -U optischema || echo "❌ Database not responding"
+	@echo "🔗 URLs:"
+	@echo "  Dashboard: http://localhost:3000/dashboard"
+	@echo "  API Health: http://localhost:8000/health"
+	@echo "  API Metrics: http://localhost:8000/metrics/raw"
+	@echo "  API Suggestions: http://localhost:8000/suggestions/latest"
 
-# Development shortcuts
-backend-logs:
-	@docker compose logs -f optischema-api
+test-api: ## Test API endpoints
+	@echo "🧪 Testing API endpoints..."
+	@echo "Health check:"
+	@curl -s http://localhost:8000/health | jq . || echo "❌ Health check failed"
+	@echo "Metrics:"
+	@curl -s http://localhost:8000/metrics/raw | jq '.[0:2]' || echo "❌ Metrics failed"
+	@echo "Suggestions:"
+	@curl -s http://localhost:8000/suggestions/latest | jq '.[0:1]' || echo "❌ Suggestions failed"
 
-frontend-logs:
-	@docker compose logs -f optischema-ui
+restart: ## Restart all services
+	@echo "🔄 Restarting services..."
+	docker compose restart
+	@echo "✅ Services restarted!"
 
-db-logs:
-	@docker compose logs -f postgres
+restart-api: ## Restart API service
+	@echo "🔄 Restarting API service..."
+	docker compose restart optischema-api
+	@echo "✅ API service restarted!"
 
-# Quick restart commands
-restart:
-	@echo "🔄 Restarting OptiSchema..."
-	@docker compose restart
-	@echo "✅ Restart complete!"
-
-restart-backend:
-	@echo "🔄 Restarting backend..."
-	@docker compose restart optischema-api
-	@echo "✅ Backend restart complete!"
-
-restart-frontend:
-	@echo "🔄 Restarting frontend..."
-	@docker compose restart optischema-ui
-	@echo "✅ Frontend restart complete!" 
+restart-ui: ## Restart UI service
+	@echo "🔄 Restarting UI service..."
+	docker compose restart optischema-ui
+	@echo "✅ UI service restarted!" 

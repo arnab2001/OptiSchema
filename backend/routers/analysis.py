@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 from pydantic import BaseModel
 from analysis.pipeline import get_analysis_cache, run_analysis_pipeline
 from analysis.core import analyze_queries
-from analysis.explain import execute_explain_plan
+from analysis.explain import execute_explain_plan, extract_plan_metrics
 from db import get_pool
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
@@ -28,6 +28,131 @@ class QueryAnalysisResponse(BaseModel):
     analysis: Optional[Dict[str, Any]] = None
     optimization: Optional[str] = None
     recommendations: Optional[Dict[str, Any]] = None
+
+
+from utils import calculate_performance_score as unified_calculate_performance_score
+
+def calculate_performance_score(execution_plan: Optional[Dict[str, Any]], query_text: str) -> int:
+    """
+    Calculate a performance score based on execution plan analysis.
+    Now uses the unified calculation from utils.py for consistency.
+    
+    Args:
+        execution_plan: The execution plan from EXPLAIN
+        query_text: The original query text
+        
+    Returns:
+        Performance score from 0-100
+    """
+    if not execution_plan or execution_plan.get("error"):
+        # If no execution plan, use basic heuristics
+        return calculate_basic_score(query_text)
+    
+    try:
+        # Extract metrics from execution plan
+        metrics = extract_plan_metrics(execution_plan)
+        
+        # Create a mock hot_query object for the unified calculation
+        hot_query = type('HotQuery', (), {
+            'mean_time': metrics.get('total_time', 0),
+            'calls': 1,  # Default for single query analysis
+            'percentage_of_total_time': 0,  # Not available in single query context
+            'shared_blks_hit': metrics.get('shared_hit_blocks', 0),
+            'shared_blks_read': metrics.get('shared_read_blocks', 0),
+            'rows': metrics.get('total_rows', 0)
+        })()
+        
+        # Use the unified calculation
+        return unified_calculate_performance_score(hot_query, execution_plan)
+        
+    except Exception:
+        # Fallback to basic score calculation
+        return calculate_basic_score(query_text)
+
+
+def calculate_basic_score(query_text: str) -> int:
+    """
+    Calculate a basic performance score based on query characteristics.
+    
+    Args:
+        query_text: The query text
+        
+    Returns:
+        Basic performance score from 0-100
+    """
+    score = 75  # Base score
+    
+    query_upper = query_text.upper()
+    
+    # Penalize complex operations
+    if 'JOIN' in query_upper:
+        score -= 10
+    if 'GROUP BY' in query_upper:
+        score -= 5
+    if 'ORDER BY' in query_upper:
+        score -= 5
+    if 'DISTINCT' in query_upper:
+        score -= 5
+    if 'LIKE' in query_upper:
+        score -= 5
+    
+    # Bonus for simple queries
+    if query_upper.startswith('SELECT COUNT(*)') or query_upper.startswith('SELECT 1'):
+        score += 10
+    if 'LIMIT' in query_upper:
+        score += 5
+    
+    # Penalize SELECT *
+    if 'SELECT *' in query_upper:
+        score -= 10
+    
+    return max(0, min(100, score))
+
+
+def detect_bottleneck_type(execution_plan: Optional[Dict[str, Any]], query_text: str) -> str:
+    """
+    Detect the main bottleneck type based on execution plan.
+    
+    Args:
+        execution_plan: The execution plan from EXPLAIN
+        query_text: The original query text
+        
+    Returns:
+        Bottleneck type description
+    """
+    if not execution_plan or execution_plan.get("error"):
+        return "unknown"
+    
+    try:
+        metrics = extract_plan_metrics(execution_plan)
+        nodes = metrics.get('nodes', [])
+        
+        # Check for sequential scans
+        seq_scans = sum(1 for node in nodes if node.get('node_type') == 'Seq Scan')
+        if seq_scans > 0:
+            return "sequential_scan"
+        
+        # Check for large sorts
+        sorts = sum(1 for node in nodes if node.get('node_type') == 'Sort')
+        if sorts > 0:
+            return "sort_operation"
+        
+        # Check for slow execution
+        total_time = metrics.get('total_time', 0)
+        if total_time > 1000:
+            return "slow_execution"
+        elif total_time > 100:
+            return "moderate_execution"
+        
+        # Check for high cost
+        total_cost = metrics.get('total_cost', 0)
+        if total_cost > 10000:
+            return "high_cost"
+        
+        return "efficient"
+        
+    except Exception:
+        return "unknown"
 
 
 @router.get("/latest")
@@ -72,14 +197,17 @@ async def analyze_query(request: QueryAnalysisRequest) -> QueryAnalysisResponse:
                 # Plan analysis failed, but continue with other analysis
                 response.execution_plan = {"error": str(e)}
         
+        # Calculate performance score and detect bottlenecks
+        performance_score = calculate_performance_score(response.execution_plan, request.query)
+        bottleneck_type = detect_bottleneck_type(response.execution_plan, request.query)
+        
         # Analyze the query
-        # For single query analysis, we'll create a simple analysis result
         analysis_result = {
             "query_text": request.query,
             "query_hash": hash(request.query),
             "analysis_summary": "Query analysis completed",
-            "performance_score": 75,  # Default score
-            "bottleneck_type": "unknown"
+            "performance_score": performance_score,
+            "bottleneck_type": bottleneck_type
         }
         response.analysis = analysis_result
         

@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
 from analysis.pipeline import get_recommendations_cache, run_analysis_pipeline
 from recommendations import apply_recommendation
+from sandbox import run_benchmark_test, get_sandbox_connection
 
 router = APIRouter(prefix="/suggestions", tags=["suggestions"])
 
@@ -36,8 +37,11 @@ async def get_specific_suggestion(recommendation_id: str) -> Dict[str, Any]:
 
 
 @router.post("/apply")
-async def apply_suggestion(recommendation_id: str) -> Dict[str, Any]:
+async def apply_suggestion(request: Dict[str, Any]) -> Dict[str, Any]:
     """Apply a specific recommendation."""
+    recommendation_id = request.get("recommendation_id")
+    if not recommendation_id:
+        raise HTTPException(status_code=400, detail="Missing recommendation_id")
     recs = get_recommendations_cache()
     if recs is None or len(recs) == 0:
         raise HTTPException(status_code=404, detail="No recommendations available")
@@ -45,7 +49,12 @@ async def apply_suggestion(recommendation_id: str) -> Dict[str, Any]:
     # Find the recommendation by ID
     recommendation = None
     for rec in recs:
-        if rec.get("id") == recommendation_id:
+        rec_id = rec.get("id")
+        # Convert UUID to string for comparison
+        if isinstance(rec_id, str) and rec_id == recommendation_id:
+            recommendation = rec
+            break
+        elif hasattr(rec_id, 'hex') and str(rec_id) == recommendation_id:
             recommendation = rec
             break
     
@@ -61,6 +70,65 @@ async def apply_suggestion(recommendation_id: str) -> Dict[str, Any]:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to apply recommendation: {str(e)}")
+
+
+@router.post("/benchmark")
+async def benchmark_suggestion(request: Dict[str, Any]) -> Dict[str, Any]:
+    """Run benchmark test for a specific recommendation in sandbox."""
+    recommendation_id = request.get("recommendation_id")
+    if not recommendation_id:
+        raise HTTPException(status_code=400, detail="Missing recommendation_id")
+    
+    recs = get_recommendations_cache()
+    if recs is None or len(recs) == 0:
+        raise HTTPException(status_code=404, detail="No recommendations available")
+    
+    # Debug logging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Looking for recommendation ID: {recommendation_id}")
+    logger.info(f"Available recommendations: {[rec.get('id') for rec in recs]}")
+    
+    # Find the recommendation by ID
+    recommendation = None
+    for rec in recs:
+        rec_id = rec.get("id")
+        # Convert UUID to string for comparison
+        if isinstance(rec_id, str) and rec_id == recommendation_id:
+            recommendation = rec
+            break
+        elif hasattr(rec_id, 'hex') and str(rec_id) == recommendation_id:
+            recommendation = rec
+            break
+    
+    if not recommendation:
+        raise HTTPException(status_code=404, detail=f"Recommendation {recommendation_id} not found")
+    
+    try:
+        # Run benchmark test in sandbox
+        benchmark_result = await run_benchmark_test(recommendation)
+        return {
+            "success": True,
+            "message": f"Benchmark completed for recommendation {recommendation_id}",
+            "benchmark": benchmark_result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to run benchmark: {str(e)}")
+
+
+@router.get("/benchmark/{recommendation_id}")
+async def get_benchmark_result(recommendation_id: str) -> Dict[str, Any]:
+    """Get benchmark results for a specific recommendation."""
+    try:
+        # This would typically fetch from database, but for now return cached result
+        return {
+            "success": True,
+            "recommendation_id": recommendation_id,
+            "status": "completed",
+            "message": "Benchmark results retrieved successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get benchmark results: {str(e)}")
 
 
 @router.post("/generate")

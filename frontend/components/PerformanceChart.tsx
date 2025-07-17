@@ -81,7 +81,7 @@ export default function PerformanceChart({ metrics, onQuerySelect }: Performance
               </div>
               
               <div className="text-xs text-muted-foreground truncate">
-                {query.query?.substring(0, 120)}...
+                {query.query_text?.substring(0, 120)}...
               </div>
               
               {/* Additional metrics */}

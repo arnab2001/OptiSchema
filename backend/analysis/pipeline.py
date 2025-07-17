@@ -14,6 +14,7 @@ from .core import analyze_queries, identify_hot_queries, detect_basic_issues
 from .explain import analyze_execution_plan, get_plan_summary
 from config import settings
 from recommendations import generate_recommendations
+from utils import calculate_performance_score
 
 logger = logging.getLogger(__name__)
 
@@ -134,50 +135,6 @@ def generate_analysis_summary(hot_query: Any, execution_plan: Optional[Execution
             summary_parts.append(f"- {issue['description']}")
     
     return "\n".join(summary_parts)
-
-
-def calculate_performance_score(hot_query: Any, execution_plan: Optional[ExecutionPlan]) -> int:
-    """
-    Calculate a performance score (0-100) for the query.
-    
-    Args:
-        hot_query: Hot query information
-        execution_plan: Execution plan analysis
-        
-    Returns:
-        Performance score (0-100, higher is better)
-    """
-    score = 100
-    
-    # Penalize based on execution time
-    if hot_query.mean_time > 1000:  # > 1 second
-        score -= 40
-    elif hot_query.mean_time > 100:  # > 100ms
-        score -= 20
-    elif hot_query.mean_time > 10:  # > 10ms
-        score -= 10
-    
-    # Penalize based on frequency
-    if hot_query.calls > 1000:
-        score -= 20
-    elif hot_query.calls > 100:
-        score -= 10
-    
-    # Penalize based on percentage of total time
-    if hot_query.percentage_of_total_time > 50:
-        score -= 30
-    elif hot_query.percentage_of_total_time > 20:
-        score -= 15
-    
-    # Adjust based on execution plan
-    if execution_plan:
-        plan_summary = get_plan_summary(execution_plan)
-        if plan_summary.get('performance_rating') == 'poor':
-            score -= 20
-        elif plan_summary.get('performance_rating') == 'fair':
-            score -= 10
-    
-    return max(0, score)
 
 
 def identify_bottleneck_type(execution_plan: Optional[ExecutionPlan], basic_issues: List[Dict[str, Any]]) -> Optional[str]:

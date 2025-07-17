@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  postgres-sandbox:
+    image: postgres:14
+    container_name: optischema-postgres-sandbox
+    environment:
+      POSTGRES_DB: optischema_sandbox
+      POSTGRES_USER: optischema
+      POSTGRES_PASSWORD: optischema_pass
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts
+    volumes:
+      - postgres_sandbox_data:/var/lib/postgresql/data
+      - ./postgresql.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U optischema -d optischema_sandbox"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  optischema-sandbox:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: optischema-sandbox
+    environment:
+      - DATABASE_URL=postgresql://optischema:optischema_pass@postgres-sandbox:5432/optischema_sandbox
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
+    ports:
+      - "8001:8000"  # Different port to avoid conflicts
+    depends_on:
+      postgres-sandbox:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - ./scripts:/scripts
+    command: >
+      sh -c "
+        echo 'Waiting for sandbox database...' &&
+        sleep 10 &&
+        echo 'Running sandbox setup...' &&
+        python /scripts/seed_data.py &&
+        echo 'Starting sandbox API...' &&
+        uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+volumes:
+  postgres_sandbox_data: 

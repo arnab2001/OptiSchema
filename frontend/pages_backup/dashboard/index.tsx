@@ -3,7 +3,24 @@ import MetricsCard from '../../components/MetricsCard'
 import PerformanceChart from '../../components/PerformanceChart'
 import SystemStatus from '../../components/SystemStatus'
 import RecommendationModal from '../../components/RecommendationModal'
-import QueryDetails from '../../components/QueryDetails'
+import QueryDetails from '@/components/QueryDetails'
+import WelcomeBanner from '../../components/WelcomeBanner'
+import DatabaseStatus from '../../components/DatabaseStatus'
+import LiveIndicator from '../../components/LiveIndicator'
+import SkeletonLoader from '../../components/SkeletonLoader'
+import ConnectionWizard from '../../components/ConnectionWizard'
+
+// Helper function to filter business queries
+function isBusinessQuery(query: string) {
+  if (!query) return false;
+  const q = query.trim().toUpperCase();
+  return (
+    q.startsWith('SELECT') ||
+    q.startsWith('INSERT') ||
+    q.startsWith('UPDATE') ||
+    q.startsWith('DELETE')
+  );
+}
 
 export default function Dashboard() {
   const [metrics, setMetrics] = useState<any>(null)
@@ -12,19 +29,78 @@ export default function Dashboard() {
   const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null)
   const [selectedQuery, setSelectedQuery] = useState<any>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'queries' | 'suggestions'>('overview')
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
+  const [showConnectionWizard, setShowConnectionWizard] = useState(false)
+  const [connectionConfig, setConnectionConfig] = useState<any>(null)
+  const [connected, setConnected] = useState<boolean>(false)
+  const [checkingStatus, setCheckingStatus] = useState(true)
 
+  // Load saved connection config on mount
   useEffect(() => {
-    fetchMetrics()
-    fetchSuggestions()
-    
-    // Set up polling
-    const interval = setInterval(() => {
-      fetchMetrics()
-      fetchSuggestions()
-    }, 30000) // Poll every 30 seconds
-
-    return () => clearInterval(interval)
+    const savedConfig = localStorage.getItem('optischema_connection')
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig)
+        setConnectionConfig(config)
+      } catch (error) {
+        console.error('Failed to load saved connection config:', error)
+      }
+    }
   }, [])
+
+  // Check backend connection status on mount
+  useEffect(() => {
+    const checkStatus = async () => {
+      setCheckingStatus(true)
+      try {
+        const res = await fetch('/api/connection/status')
+        const data = await res.json()
+        setConnected(!!data.connected)
+      } catch (e) {
+        setConnected(false)
+      } finally {
+        setCheckingStatus(false)
+      }
+    }
+    checkStatus()
+  }, [])
+
+  const handleConnect = (config: any) => {
+    setConnectionConfig(config)
+    // In a real implementation, you would send this to the backend
+    // to establish the connection
+    console.log('Connecting to database:', config)
+  }
+
+  // Only fetch metrics/suggestions if connected
+  useEffect(() => {
+    if (!connected) return
+    setLoading(true)
+    const fetchData = async () => {
+      try {
+        const [metricsRes, suggestionsRes] = await Promise.all([
+          fetch('/api/metrics/raw'),
+          fetch('/api/suggestions/latest')
+        ])
+        if (metricsRes.ok) {
+          const metricsData = await metricsRes.json()
+          setMetrics(metricsData)
+          setLastUpdate(new Date())
+        }
+        if (suggestionsRes.ok) {
+          const suggestionsData = await suggestionsRes.json()
+          setSuggestions(suggestionsData)
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+    const interval = setInterval(fetchData, 30000)
+    return () => clearInterval(interval)
+  }, [connected])
 
   const fetchMetrics = async () => {
     try {
@@ -74,6 +150,43 @@ export default function Dashboard() {
       .slice(0, 5)
   }
 
+  // Filter metrics to only show business queries
+  const businessMetrics = metrics?.filter((m: any) => isBusinessQuery(m.query));
+
+  if (checkingStatus) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Checking database connection...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!connected) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center">
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold mb-2">Not connected to a database</h2>
+          <p className="text-muted-foreground mb-4">Connect to your PostgreSQL instance to begin monitoring and optimization.</p>
+          <button
+            className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
+            onClick={() => setShowConnectionWizard(true)}
+          >
+            Connect to Database
+          </button>
+        </div>
+        <ConnectionWizard
+          isOpen={showConnectionWizard}
+          onClose={() => setShowConnectionWizard(false)}
+          onConnect={handleConnect}
+          currentConfig={connectionConfig}
+        />
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -95,10 +208,23 @@ export default function Dashboard() {
               <h1 className="text-2xl font-bold text-foreground">OptiSchema</h1>
               <p className="text-muted-foreground">AI-Powered PostgreSQL Optimization</p>
             </div>
-            <SystemStatus />
+            <div className="flex items-center space-x-6">
+              <DatabaseStatus 
+                dbName={connectionConfig?.database || "optischema"} 
+                status={connectionConfig ? "connected" : "disconnected"}
+                onConnect={() => setShowConnectionWizard(true)}
+              />
+              <LiveIndicator isLive={true} lastUpdate={lastUpdate} />
+              <SystemStatus />
+            </div>
           </div>
         </div>
       </header>
+
+      {/* Welcome Banner */}
+      <div className="container mx-auto px-4 py-4">
+        <WelcomeBanner />
+      </div>
 
       {/* Navigation Tabs */}
       <div className="border-b border-border bg-card">
@@ -127,70 +253,103 @@ export default function Dashboard() {
       </div>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-6">
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <MetricsCard
-                title="Total Queries"
-                value={metrics?.length || 0}
-                description="Queries monitored"
-                trend="up"
-              />
-              <MetricsCard
-                title="Avg Response Time"
-                value={`${(metrics?.reduce((acc: number, q: any) => acc + q.mean_time, 0) / (metrics?.length || 1) || 0).toFixed(2)}ms`}
-                description="Average query time"
-                trend="down"
-              />
-              <MetricsCard
-                title="Total Execution Time"
-                value={`${(metrics?.reduce((acc: number, q: any) => acc + q.total_time, 0) || 0).toFixed(0)}ms`}
-                description="Cumulative time"
-                trend="neutral"
-              />
-              <MetricsCard
-                title="Active Suggestions"
-                value={suggestions?.length || 0}
-                description="Optimization opportunities"
-                trend="neutral"
-              />
-            </div>
-
-            {/* Performance Overview */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-card border border-border rounded-lg p-6">
-                <h2 className="text-xl font-semibold mb-4">Top Queries by Total Time</h2>
-                <PerformanceChart metrics={getTopQueries()} onQuerySelect={setSelectedQuery} />
+            {/* Performance Metrics */}
+            <div className="bg-card rounded-lg border border-border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-foreground">Performance Metrics</h2>
+                <LiveIndicator isLive={true} lastUpdate={lastUpdate} />
               </div>
-              
-              <div className="bg-card border border-border rounded-lg p-6">
-                <h2 className="text-xl font-semibold mb-4">Slowest Queries (Avg Time)</h2>
-                <div className="space-y-3">
-                  {getSlowestQueries().map((query: any, index: number) => (
+              <p className="text-sm text-muted-foreground mb-4">
+                Real-time performance metrics from your PostgreSQL database. Data refreshes automatically every 30 seconds.
+              </p>
+              {loading ? (
+                <SkeletonLoader type="table" lines={5} />
+              ) : businessMetrics.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  <p>No business queries detected yet.</p>
+                  <p className="text-xs mt-2">Once your application runs SELECT, INSERT, UPDATE, or DELETE queries, they will appear here.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {businessMetrics.slice(0, 5).map((metric: any, index: number) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-3 bg-muted/30 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => setSelectedQuery(query)}
+                      className="flex items-center justify-between p-4 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors cursor-pointer"
+                      onClick={() => {
+                        setSelectedQuery(metric)
+                        setActiveTab('queries')
+                      }}
                     >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          Query {index + 1}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {query.calls} calls • {query.mean_time.toFixed(2)}ms avg
-                        </p>
+                      <div className="flex-1">
+                        <div className="font-medium text-foreground truncate">
+                          {metric.query?.substring(0, 100)}...
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Calls: {metric.calls} | Avg Time: {metric.mean_time?.toFixed(2)}ms
+                        </div>
                       </div>
                       <div className="text-right">
-                        <span className="text-sm font-medium text-red-600">
-                          {query.total_time}ms
-                        </span>
+                        <div className="text-lg font-semibold text-foreground">
+                          {metric.total_time?.toFixed(2)}ms
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {((metric.total_time / businessMetrics.reduce((sum: number, m: any) => sum + (m.total_time || 0), 0)) * 100).toFixed(1)}%
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+
+            {/* Optimization Suggestions */}
+            <div className="bg-card rounded-lg border border-border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-foreground">Optimization Suggestions</h2>
+                <LiveIndicator isLive={true} lastUpdate={lastUpdate} />
               </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                AI-powered recommendations to improve your database performance. Click any suggestion to see detailed analysis.
+              </p>
+              {loading ? (
+                <SkeletonLoader type="table" lines={3} />
+              ) : (
+                <div className="space-y-4">
+                  {suggestions.slice(0, 3).map((suggestion, index) => (
+                    <div
+                      key={index}
+                      className="p-4 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors cursor-pointer"
+                      onClick={() => {
+                        setSelectedSuggestion(suggestion)
+                        setActiveTab('suggestions')
+                      }}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="font-medium text-foreground mb-2">
+                            {suggestion.title}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {suggestion.description}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            suggestion.impact === 'high' ? 'bg-red-100 text-red-800' :
+                            suggestion.impact === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-green-100 text-green-800'
+                          }`}>
+                            {suggestion.impact} impact
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -329,6 +488,14 @@ export default function Dashboard() {
           }}
         />
       )}
+
+      {/* Connection Wizard */}
+      <ConnectionWizard
+        isOpen={showConnectionWizard}
+        onClose={() => setShowConnectionWizard(false)}
+        onConnect={handleConnect}
+        currentConfig={connectionConfig}
+      />
     </div>
   )
 } 

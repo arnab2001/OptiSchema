@@ -4,6 +4,7 @@ Combines heuristics and AI to generate actionable optimization suggestions.
 """
 
 import logging
+import uuid
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from models import QueryMetrics, Recommendation, AnalysisResult
@@ -53,6 +54,7 @@ async def generate_recommendations_for_analysis(analysis: AnalysisResult) -> Lis
     # Heuristic recommendations
     if analysis.bottleneck_type in ("sequential_scan", "missing_index"):
         recs.append(Recommendation(
+            id=str(uuid.uuid4()),
             query_hash=analysis.query_hash,
             recommendation_type="index",
             title="Add Index",
@@ -66,6 +68,7 @@ async def generate_recommendations_for_analysis(analysis: AnalysisResult) -> Lis
         ))
     if analysis.bottleneck_type == "large_sort":
         recs.append(Recommendation(
+            id=str(uuid.uuid4()),
             query_hash=analysis.query_hash,
             recommendation_type="index",
             title="Add Index for Sort",
@@ -85,6 +88,7 @@ async def generate_recommendations_for_analysis(analysis: AnalysisResult) -> Lis
         "summary": analysis.analysis_summary
     })
     recs.append(Recommendation(
+        id=str(uuid.uuid4()),
         query_hash=analysis.query_hash,
         recommendation_type="ai",
         title=ai_rec.get("title", "AI Recommendation"),
@@ -102,6 +106,7 @@ async def generate_recommendations_for_analysis(analysis: AnalysisResult) -> Lis
             optimized_sql = await rewrite_query(analysis.query_text)
             if optimized_sql and optimized_sql != analysis.query_text:
                 recs.append(Recommendation(
+                    id=str(uuid.uuid4()),
                     query_hash=analysis.query_hash,
                     recommendation_type="rewrite",
                     title="Rewrite Query",
