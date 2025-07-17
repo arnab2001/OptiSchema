@@ -23,7 +23,7 @@ help:
 # Development commands
 dev:
 	@echo "🚀 Starting OptiSchema development stack..."
-	@docker-compose up --build -d
+	@docker compose up --build -d
 	@echo "✅ Development stack started!"
 	@echo "📊 Frontend: http://localhost:3000"
 	@echo "🔧 Backend API: http://localhost:8000"
@@ -34,11 +34,11 @@ dev:
 
 demo:
 	@echo "🎭 Starting OptiSchema with demo data..."
-	@docker-compose up --build -d
+	@docker compose up --build -d
 	@echo "⏳ Waiting for services to be ready..."
 	@sleep 10
 	@echo "🌱 Seeding demo data..."
-	@docker-compose exec optischema-api python scripts/seed_data.py || echo "⚠️  Demo data seeding failed (backend not ready yet)"
+	@docker compose exec optischema-api python scripts/seed_data.py || echo "⚠️  Demo data seeding failed (backend not ready yet)"
 	@echo "✅ Demo started!"
 	@echo "📊 Frontend: http://localhost:3000"
 	@echo "🔧 Backend API: http://localhost:8000"
@@ -47,38 +47,38 @@ demo:
 # Build commands
 build:
 	@echo "🔨 Building OptiSchema Docker images..."
-	@docker-compose build
+	@docker compose build
 	@echo "✅ Build complete!"
 
 # Testing commands
 test:
 	@echo "🧪 Running tests..."
-	@docker-compose exec optischema-api python -m pytest tests/ || echo "⚠️  Backend tests failed (backend not running)"
+	@docker compose exec optischema-api python -m pytest tests/ || echo "⚠️  Backend tests failed (backend not running)"
 	@echo "✅ Tests complete!"
 
 # Linting and formatting
 lint:
 	@echo "🔍 Running linting..."
-	@docker-compose exec optischema-api python -m flake8 . || echo "⚠️  Backend linting failed (backend not running)"
-	@docker-compose exec optischema-ui npm run lint || echo "⚠️  Frontend linting failed (frontend not running)"
+	@docker compose exec optischema-api python -m flake8 . || echo "⚠️  Backend linting failed (backend not running)"
+	@docker compose exec optischema-ui npm run lint || echo "⚠️  Frontend linting failed (frontend not running)"
 	@echo "✅ Linting complete!"
 
 format:
 	@echo "🎨 Formatting code..."
-	@docker-compose exec optischema-api python -m black . || echo "⚠️  Backend formatting failed (backend not running)"
-	@docker-compose exec optischema-ui npm run format || echo "⚠️  Frontend formatting failed (frontend not running)"
+	@docker compose exec optischema-api python -m black . || echo "⚠️  Backend formatting failed (backend not running)"
+	@docker compose exec optischema-ui npm run format || echo "⚠️  Frontend formatting failed (frontend not running)"
 	@echo "✅ Formatting complete!"
 
 # Maintenance commands
 clean:
 	@echo "🧹 Cleaning up OptiSchema..."
-	@docker-compose down -v --remove-orphans
+	@docker compose down -v --remove-orphans
 	@docker system prune -f
 	@echo "✅ Cleanup complete!"
 
 logs:
 	@echo "📋 Showing OptiSchema logs..."
-	@docker-compose logs -f
+	@docker compose logs -f
 
 # Setup commands
 setup:
@@ -95,24 +95,24 @@ setup:
 # Database commands
 db-reset:
 	@echo "🗄️  Resetting database..."
-	@docker-compose down postgres
+	@docker compose down postgres
 	@docker volume rm optischema_pgdata || true
-	@docker-compose up -d postgres
+	@docker compose up -d postgres
 	@echo "✅ Database reset complete!"
 
 db-shell:
 	@echo "🐘 Opening PostgreSQL shell..."
-	@docker-compose exec postgres psql -U optischema -d optischema
+	@docker compose exec postgres psql -U optischema -d optischema
 
 # Sandbox commands
 sandbox:
 	@echo "🧪 Starting sandbox environment..."
-	@docker-compose --profile sandbox up -d postgres_sandbox
+	@docker compose --profile sandbox up -d postgres_sandbox
 	@echo "✅ Sandbox started on localhost:5433"
 
 sandbox-shell:
 	@echo "🐘 Opening sandbox PostgreSQL shell..."
-	@docker-compose exec postgres_sandbox psql -U sandbox -d sandbox
+	@docker compose exec postgres_sandbox psql -U sandbox -d sandbox
 
 # Health checks
 health:
@@ -124,30 +124,30 @@ health:
 	@curl -f http://localhost:3000 || echo "❌ Frontend not responding"
 	@echo ""
 	@echo "Database:"
-	@docker-compose exec postgres pg_isready -U optischema || echo "❌ Database not responding"
+	@docker compose exec postgres pg_isready -U optischema || echo "❌ Database not responding"
 
 # Development shortcuts
 backend-logs:
-	@docker-compose logs -f optischema-api
+	@docker compose logs -f optischema-api
 
 frontend-logs:
-	@docker-compose logs -f optischema-ui
+	@docker compose logs -f optischema-ui
 
 db-logs:
-	@docker-compose logs -f postgres
+	@docker compose logs -f postgres
 
 # Quick restart commands
 restart:
 	@echo "🔄 Restarting OptiSchema..."
-	@docker-compose restart
+	@docker compose restart
 	@echo "✅ Restart complete!"
 
 restart-backend:
 	@echo "🔄 Restarting backend..."
-	@docker-compose restart optischema-api
+	@docker compose restart optischema-api
 	@echo "✅ Backend restart complete!"
 
 restart-frontend:
 	@echo "🔄 Restarting frontend..."
-	@docker-compose restart optischema-ui
+	@docker compose restart optischema-ui
 	@echo "✅ Frontend restart complete!" 
