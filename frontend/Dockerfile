@@ -1,5 +1,8 @@
 FROM node:18-alpine
 
+# Install Python and build tools for native dependencies
+RUN apk add --no-cache python3 make g++
+
 # Set working directory
 WORKDIR /app
 

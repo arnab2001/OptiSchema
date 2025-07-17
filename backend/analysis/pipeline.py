@@ -282,4 +282,7 @@ def get_last_analysis_time() -> Optional[datetime]:
 
 
 def get_recommendations_cache() -> List[Any]:
-    return recommendations_cache 
+    """Get the latest recommendations from cache as dictionaries."""
+    if not recommendations_cache:
+        return []
+    return [rec.model_dump() if hasattr(rec, 'model_dump') else rec for rec in recommendations_cache] 

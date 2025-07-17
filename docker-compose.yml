@@ -61,26 +61,26 @@ services:
     restart: unless-stopped
 
   # Next.js Frontend
-  # optischema-ui:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   container_name: optischema-ui
-  #   environment:
-  #     - NEXT_PUBLIC_API_URL=http://localhost:8000
-  #     - NEXT_PUBLIC_WS_URL=${UI_WS_URL:-ws://localhost:8000/ws}
-  #     - NODE_ENV=development
-  #   ports:
-  #     - "3000:3000"
-  #   volumes:
-  #     - ./frontend:/app
-  #     - /app/node_modules
-  #     - /app/.next
-  #   depends_on:
-  #     - optischema-api
-  #   networks:
-  #     - optischema-network
-  #   restart: unless-stopped
+  optischema-ui:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: optischema-ui
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=${UI_WS_URL:-ws://localhost:8000/ws}
+      - NODE_ENV=development
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - optischema-api
+    networks:
+      - optischema-network
+    restart: unless-stopped
 
   # Optional: Sandbox PostgreSQL for testing patches
   postgres_sandbox:
