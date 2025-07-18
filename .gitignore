@@ -28,6 +28,8 @@ MANIFEST
 .env.development.local
 .env.test.local
 .env.production.local
+.env.backup
+.env.*.backup
 
 # Python virtual environments
 venv/
