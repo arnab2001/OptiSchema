@@ -1,4 +1,4 @@
-# 🎯 OptiSchema MVP
+# 🎯 OptiSchema
 
 An AI-assisted database tuning service that monitors PostgreSQL workloads, identifies performance bottlenecks, and delivers actionable, one-click fixes with projected cost/latency savings.
 
@@ -6,7 +6,7 @@ An AI-assisted database tuning service that monitors PostgreSQL workloads, ident
 
 ### Prerequisites
 - Docker and Docker Compose
-- OpenAI API Key
+- AI API Key (Gemini or DeepSeek)
 - Git
 
 ### Setup
@@ -19,7 +19,7 @@ An AI-assisted database tuning service that monitors PostgreSQL workloads, ident
 2. **Configure environment**
    ```bash
    cp .env.example .env
-   # Edit .env with your OpenAI API key and other settings
+   # Edit .env with your AI API key and other settings
    ```
 
 3. **Start the development stack**
@@ -35,37 +35,53 @@ An AI-assisted database tuning service that monitors PostgreSQL workloads, ident
 ## 🏗️ Architecture
 
 ### Backend (Python 3.12 + FastAPI)
-- **Database Poller**: Monitors `pg_stat_statements` every 30 seconds
-- **Analysis Engine**: Uses `pandas` + `sqlglot` + GPT-4o for query optimization
+- **Database Poller**: Monitors `pg_stat_statements` every 30 seconds with adaptive filtering
+- **Analysis Engine**: Multi-model AI integration (Gemini 2.0 Flash, DeepSeek Chat)
+- **Query Fingerprinting**: Intelligent query normalization and deduplication
+- **Execution Plan Analysis**: Deep PostgreSQL explain plan parsing and bottleneck detection
 - **Real-time Communication**: WebSocket server for live updates
+- **Caching System**: SQLite-based caching for AI responses to reduce costs
 
-### Frontend (Next.js 14 + Tailwind + ShadCN)
-- **Live Dashboard**: Real-time performance metrics and heatmap
-- **Interactive Modals**: AI-powered recommendations with apply functionality
-- **WebSocket Integration**: Real-time updates without page refresh
+### Frontend (Next.js 14 + TypeScript + Tailwind)
+- **Live Dashboard**: Real-time performance metrics with responsive design
+- **Interactive Query Analysis**: Detailed query breakdowns with execution plans
+- **AI Recommendations**: Interactive modals with confidence scoring and benchmarks
+- **Connection Management**: Database connection wizard with secure credential storage
+- **Dark Mode Support**: Full dark/light theme support with keyboard navigation
 
 ### Infrastructure (Docker Compose)
 - **PostgreSQL 14**: Main database with `pg_stat_statements` extension
-- **API Service**: FastAPI backend container
-- **UI Service**: Next.js frontend container
-- **Optional Sandbox**: Isolated PostgreSQL instance for testing patches
+- **PostgreSQL Sandbox**: Isolated instance for safe optimization testing
+- **API Service**: FastAPI backend container with hot-reload
+- **UI Service**: Next.js frontend container with hot-reload
 
 ## 📊 Features
 
 ### Real-time Monitoring
-- Continuous PostgreSQL query performance tracking
-- Automatic identification of hot queries
-- Execution plan analysis and bottleneck detection
+- Continuous PostgreSQL query performance tracking with smart filtering
+- Automatic identification of hot queries and performance bottlenecks
+- Execution plan analysis with detailed bottleneck detection
+- Business query filtering (excludes system queries)
 
 ### AI-Powered Analysis
-- GPT-4o integration for plain-English explanations
+- Multi-model AI support (Gemini, DeepSeek) for query optimization
+- Plain-English explanations of execution plans
 - Intelligent query rewrite suggestions
-- Strategic index recommendations
+- Strategic index and configuration recommendations
+- Confidence scoring and risk assessment
 
 ### One-Click Optimization
 - Safe sandbox environment for testing patches
+- Before/after performance benchmarking
+- Automatic rollback SQL generation
 - Cost-benefit projections for each optimization
-- Confidence scoring for recommendations
+
+### Advanced UI Features
+- Responsive design with mobile optimization
+- Real-time WebSocket updates
+- Interactive query tables with sorting and filtering
+- Performance badges and visual indicators
+- Keyboard navigation and accessibility features
 
 ## 🛠️ Development
 
@@ -73,11 +89,19 @@ An AI-assisted database tuning service that monitors PostgreSQL workloads, ident
 ```
 optischema/
 ├── backend/          # FastAPI application
+│   ├── analysis/     # AI analysis engine
+│   ├── routers/      # API endpoints
+│   └── models.py     # Data models
 ├── frontend/         # Next.js application
+│   ├── app/          # App router pages
+│   ├── components/   # React components
+│   └── hooks/        # Custom hooks
 ├── scripts/          # Demo and utility scripts
+├── docs/             # Documentation
+│   └── archive/      # Historical documentation
 ├── docker-compose.yml
-├── .env.example
-├── Makefile
+├── DEMO.md           # Demo guide
+├── PROJECT_CONTEXT.md # Project overview
 └── README.md
 ```
 
@@ -86,6 +110,7 @@ optischema/
 - `make demo` - Seed demo data and start the application
 - `make clean` - Stop and clean all containers
 - `make logs` - View logs from all services
+- `make sandbox` - Start sandbox environment for testing
 
 ### Development Workflow
 1. **Backend Development**: Edit files in `backend/` - auto-reloads
@@ -96,15 +121,18 @@ optischema/
 
 ### Environment Variables
 - `DATABASE_URL` - PostgreSQL connection string
-- `OPENAI_API_KEY` - OpenAI API key for GPT-4o
+- `GEMINI_API_KEY` - Google Gemini API key
+- `DEEPSEEK_API_KEY` - DeepSeek API key
+- `LLM_PROVIDER` - AI provider preference (gemini/deepseek)
 - `UI_WS_URL` - WebSocket URL for real-time updates
 - `POSTGRES_PASSWORD` - PostgreSQL password
 
 ### API Endpoints
 - `GET /health` - Health check
-- `GET /metrics/raw` - Raw query metrics
-- `GET /suggestions/latest` - Latest optimization suggestions
-- `POST /suggestions/apply` - Apply optimization in sandbox
+- `GET /api/metrics/raw` - Raw query metrics with pagination
+- `GET /api/suggestions/latest` - Latest optimization suggestions
+- `POST /api/suggestions/apply` - Apply optimization in sandbox
+- `POST /api/suggestions/benchmark` - Benchmark optimization
 - `WS /ws` - WebSocket for real-time updates
 
 ## 📈 Performance Metrics
@@ -130,9 +158,18 @@ make demo
 
 This will:
 1. Start all services
-2. Seed the database with sample data
+2. Seed the database with realistic demo data
 3. Generate intentional performance bottlenecks
 4. Show the system identifying and suggesting optimizations
+
+See [DEMO.md](DEMO.md) for detailed demo scenarios and troubleshooting.
+
+## 📚 Documentation
+
+- [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) - Project overview and architecture
+- [ENHANCED_IMPLEMENTATION_PLAN.md](ENHANCED_IMPLEMENTATION_PLAN.md) - Development roadmap
+- [DEMO.md](DEMO.md) - Demo guide and scenarios
+- [docs/archive/](docs/archive/) - Historical documentation
 
 ## 🤝 Contributing
 
@@ -149,7 +186,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 🆘 Support
 
 For questions or issues:
-1. Check the documentation in `/docs`
+1. Check the documentation in the project root
 2. Review the API documentation at `http://localhost:8000/docs`
 3. Open an issue on GitHub
 

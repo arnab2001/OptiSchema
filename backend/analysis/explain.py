@@ -61,11 +61,18 @@ def extract_plan_metrics(plan_json: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Extracted metrics and analysis
     """
-    if not plan_json or not isinstance(plan_json, list):
+    if not plan_json:
         return {}
     
-    # Get the first plan (main query)
-    plan = plan_json[0] if isinstance(plan_json, list) else plan_json
+    # Handle different plan structures
+    if isinstance(plan_json, list):
+        if len(plan_json) == 0:
+            return {}
+        plan = plan_json[0]
+    elif isinstance(plan_json, dict):
+        plan = plan_json
+    else:
+        return {}
     
     metrics = {
         'total_cost': 0.0,

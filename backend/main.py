@@ -38,30 +38,18 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 Starting OptiSchema backend...")
     
-    # Initialize database connection pool
-    try:
-        success = await initialize_database()
-        if success:
-            logger.info("✅ Database connection pool initialized")
-        else:
-            logger.error("❌ Failed to initialize database connection pool")
-            raise Exception("Database initialization failed")
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize database connection pool: {e}")
-        raise
-    
-    # Test database connection
-    await db_health_check()
+    # Database connection will be established when user provides credentials
+    logger.info("✅ Database connection will be established when user provides credentials")
     
     # Initialize the collector with connection change callback
     initialize_collector()
     
-    # Start the background polling task for query metrics
-    loop = asyncio.get_event_loop()
-    collector_task = loop.create_task(poll_pg_stat())
-    logger.info("✅ Started pg_stat_statements polling task")
+    # Collector task will be started when user connects to database
+    collector_task = None
+    logger.info("✅ Collector ready - will start when database connection is established")
     
     # Start the analysis scheduler
+    loop = asyncio.get_event_loop()
     analysis_task = loop.create_task(start_analysis_scheduler())
     logger.info("✅ Started analysis scheduler")
     

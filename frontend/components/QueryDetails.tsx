@@ -65,6 +65,30 @@ export default function QueryDetails({ query, onClose }: QueryDetailsProps) {
   // Calculate time percentage (if available)
   const timePercentage = query.time_percentage || 0
 
+  // Ensure we have valid data before rendering
+  if (!query.query_text || query.calls === undefined) {
+    return (
+      <div className="max-h-[90vh] overflow-y-auto bg-white">
+        <div className="space-y-6 p-6">
+          <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Query Details</h3>
+            {onClose && (
+              <button 
+                onClick={onClose}
+                className="p-1 hover:bg-gray-100 rounded-md transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            )}
+          </div>
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">No query data available</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       <div className="max-h-[90vh] overflow-y-auto bg-white">
@@ -150,6 +174,23 @@ export default function QueryDetails({ query, onClose }: QueryDetailsProps) {
           {/* Performance Indicators with Grid Layout and Progress Bars */}
           <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
             <h4 className="text-sm font-semibold text-gray-900 mb-4">Performance Indicators</h4>
+            {cacheHitPercentage === 100 ? (
+              <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-700">
+                💡 <strong>Cache Performance:</strong> 100% cache hits indicate excellent memory utilization. This is normal for well-optimized databases where frequently accessed data stays in memory.
+              </div>
+            ) : cacheHitPercentage >= 95 ? (
+              <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+                💡 <strong>Cache Performance:</strong> {cacheHitPercentage.toFixed(1)}% cache hits is very good. Most data is served from memory with minimal disk I/O.
+              </div>
+            ) : cacheHitPercentage >= 80 ? (
+              <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
+                ⚠️ <strong>Cache Performance:</strong> {cacheHitPercentage.toFixed(1)}% cache hits. Consider optimizing indexes or increasing shared_buffers for better performance.
+              </div>
+            ) : (
+              <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                🚨 <strong>Cache Performance:</strong> {cacheHitPercentage.toFixed(1)}% cache hits indicates significant disk I/O. This query may benefit from index optimization or query rewriting.
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Database Time Usage */}
               <div className="text-center">
@@ -177,6 +218,23 @@ export default function QueryDetails({ query, onClose }: QueryDetailsProps) {
                     style={{ width: `${cacheHitPercentage}%` }}
                   />
                 </div>
+                {cacheHitPercentage === 100 ? (
+                  <div className="text-xs text-green-600 mt-1">
+                    Excellent! All data from memory
+                  </div>
+                ) : cacheHitPercentage >= 95 ? (
+                  <div className="text-xs text-blue-600 mt-1">
+                    Very good cache performance
+                  </div>
+                ) : cacheHitPercentage >= 80 ? (
+                  <div className="text-xs text-yellow-600 mt-1">
+                    Moderate cache performance
+                  </div>
+                ) : (
+                  <div className="text-xs text-red-600 mt-1">
+                    Low cache performance
+                  </div>
+                )}
               </div>
 
               {/* Efficiency Score */}

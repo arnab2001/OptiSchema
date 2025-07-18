@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Loader2, AlertTriangle, CheckCircle, Clock, Database, TrendingUp } from 'lucide-react'
+import { X, Loader2, AlertTriangle, CheckCircle, Clock, Database, TrendingUp, Info } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface ExecutionPlanModalProps {
   query: string
@@ -153,6 +155,20 @@ export default function ExecutionPlanModal({ query, isOpen, onClose }: Execution
                     </div>
                   </div>
                 </div>
+                
+                {/* Data Source Indicator */}
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="flex items-center gap-2">
+                    <Info className="w-4 h-4 text-blue-500" />
+                    <span className="text-sm font-medium text-blue-800">Analysis Data Source</span>
+                  </div>
+                  <p className="text-xs text-blue-700 mt-1">
+                    {analysis.recommendations?.actual_metrics ? 
+                      "✅ Using actual query metrics from pg_stat_statements" : 
+                      "📊 Using calculated performance score based on query patterns"
+                    }
+                  </p>
+                </div>
               </div>
             )}
 
@@ -162,7 +178,12 @@ export default function ExecutionPlanModal({ query, isOpen, onClose }: Execution
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">Optimized Query</h3>
                 <div className="bg-green-50 border border-green-200 p-4 rounded-md">
                   <pre className="text-sm text-green-800 whitespace-pre-wrap break-words font-mono">
-                    <code>{analysis.optimization}</code>
+                    <code>
+                      {analysis.optimization
+                        .replace(/^```sql\s*/, '')  // Remove opening ```sql
+                        .replace(/```\s*$/, '')    // Remove closing ```
+                        .trim()}
+                    </code>
                   </pre>
                 </div>
               </div>
@@ -173,11 +194,51 @@ export default function ExecutionPlanModal({ query, isOpen, onClose }: Execution
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">AI Recommendations</h3>
                 <div className="bg-blue-50 border border-blue-200 p-4 rounded-md">
-                  <div className="text-sm text-blue-800 whitespace-pre-wrap">
-                    {typeof analysis.recommendations === 'string' 
-                      ? analysis.recommendations 
-                      : JSON.stringify(analysis.recommendations, null, 2)
-                    }
+                  <div className="text-sm text-blue-800 prose prose-sm max-w-none">
+                    {typeof analysis.recommendations === 'string' ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {analysis.recommendations}
+                      </ReactMarkdown>
+                    ) : analysis.recommendations.title ? (
+                      <div className="space-y-4">
+                        {/* Title */}
+                        <div>
+                          <h4 className="font-semibold text-blue-900 mb-2">
+                            {analysis.recommendations.title
+                              .replace(/^\d+\.\s*\*\*?([^*]+)\*\*?/, '$1')
+                              .replace(/^\d+\.\s*/, '')
+                              .trim()}
+                          </h4>
+                        </div>
+                        
+                        {/* Description */}
+                        {analysis.recommendations.description && (
+                          <div>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {analysis.recommendations.description
+                                .replace(/^\d+\.\s*\*\*?([^*]+)\*\*?:\s*/, '')
+                                .replace(/^\*\*([^*]+)\*\*:\s*/, '')
+                                .replace(/^\*\*([^*]+)\*\*\s*/, '')
+                                .trim()}
+                            </ReactMarkdown>
+                          </div>
+                        )}
+                        
+                        {/* SQL Fix */}
+                        {analysis.recommendations.sql_fix && (
+                          <div>
+                            <h5 className="font-medium text-blue-900 mb-2">SQL Fix:</h5>
+                            <pre className="bg-blue-100 p-3 rounded text-sm overflow-x-auto">
+                              <code>{analysis.recommendations.sql_fix}</code>
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <pre className="whitespace-pre-wrap">
+                        {JSON.stringify(analysis.recommendations, null, 2)}
+                      </pre>
+                    )}
                   </div>
                 </div>
               </div>

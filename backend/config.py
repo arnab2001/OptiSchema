@@ -90,11 +90,5 @@ def get_database_config():
                     "password": password
                 }
     
-    # Fallback to environment variables
-    return {
-        "host": os.getenv("POSTGRES_HOST", "postgres"),
-        "port": int(os.getenv("POSTGRES_PORT", "5432")),
-        "database": os.getenv("POSTGRES_DB", "optischema"),
-        "user": os.getenv("POSTGRES_USER", "optischema"),
-        "password": os.getenv("POSTGRES_PASSWORD", "optischema_pass")
-    } 
+    # No fallback - require explicit configuration
+    raise ValueError("No database configuration found. Please set DATABASE_URL or individual database environment variables.") 

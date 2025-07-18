@@ -5,6 +5,7 @@ Provides endpoints for query metrics and performance data.
 
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Dict, Any, Optional
+from datetime import datetime, timedelta
 from analysis.core import calculate_performance_metrics, identify_hot_queries
 from collector import get_metrics_cache
 from connection_manager import connection_manager
@@ -183,6 +184,193 @@ async def get_collection_stats() -> Dict[str, Any]:
             "memory_warning": memory_mb > 100,
             "recommendation": get_performance_recommendation(total_queries, memory_mb)
         }
+    }
+
+
+@router.get("/historical")
+async def get_historical_metrics(
+    time_range: str = Query("1h", description="Time range: 1h, 6h, 24h, 7d"),
+    interval: str = Query("5m", description="Data interval: 1m, 5m, 15m, 1h")
+) -> Dict[str, Any]:
+    """Return historical metrics for trend analysis."""
+    # For now, generate mock historical data
+    # In a real implementation, this would query a time-series database
+    
+    now = datetime.utcnow()
+    intervals = {
+        "1h": 12,  # 5-minute intervals for 1 hour
+        "6h": 72,  # 5-minute intervals for 6 hours
+        "24h": 288,  # 5-minute intervals for 24 hours
+        "7d": 2016  # 5-minute intervals for 7 days
+    }
+    
+    interval_minutes = {
+        "1m": 1,
+        "5m": 5,
+        "15m": 15,
+        "1h": 60
+    }
+    
+    num_intervals = intervals.get(time_range, 12)
+    interval_min = interval_minutes.get(interval, 5)
+    
+    # Generate mock historical data
+    historical_data = []
+    base_latency = 50  # Base latency in ms
+    base_queries = 1000  # Base query count
+    
+    for i in range(num_intervals):
+        timestamp = now - timedelta(minutes=i * interval_min)
+        
+        # Add some realistic variation
+        variation = (i % 10) * 0.2  # Cyclic variation
+        noise = (hash(str(i)) % 20) - 10  # Random noise
+        
+        avg_latency = max(10, base_latency + variation * 20 + noise)
+        p95_latency = avg_latency * 2.5
+        p99_latency = avg_latency * 4
+        
+        total_queries = max(100, base_queries + (hash(str(i)) % 500) - 250)
+        slow_queries = max(0, int(total_queries * 0.1 + (hash(str(i)) % 20) - 10))
+        
+        historical_data.append({
+            "timestamp": timestamp.isoformat(),
+            "avg_latency": round(avg_latency, 2),
+            "p95_latency": round(p95_latency, 2),
+            "p99_latency": round(p99_latency, 2),
+            "total_queries": total_queries,
+            "slow_queries": slow_queries
+        })
+    
+    # Reverse to show oldest first
+    historical_data.reverse()
+    
+    return {
+        "time_range": time_range,
+        "interval": interval,
+        "data_points": len(historical_data),
+        "data": historical_data
+    }
+
+
+@router.get("/trends")
+async def get_performance_trends() -> Dict[str, Any]:
+    """Return performance trend analysis."""
+    metrics = get_metrics_cache()
+    
+    if not metrics:
+        return {
+            "trends": [],
+            "insights": [],
+            "recommendations": []
+        }
+    
+    # Calculate trends based on current metrics
+    total_queries = len(metrics)
+    avg_latency = sum(m.mean_time for m in metrics) / total_queries if total_queries > 0 else 0
+    slow_queries = len([m for m in metrics if m.mean_time > 100])
+    
+    # Generate trend insights
+    trends = []
+    insights = []
+    recommendations = []
+    
+    if avg_latency > 50:
+        trends.append({
+            "type": "warning",
+            "metric": "average_latency",
+            "value": avg_latency,
+            "threshold": 50,
+            "message": f"Average query latency is {avg_latency:.1f}ms, above recommended threshold"
+        })
+        recommendations.append("Consider adding indexes on frequently queried columns")
+    
+    if slow_queries > total_queries * 0.1:
+        trends.append({
+            "type": "warning",
+            "metric": "slow_queries",
+            "value": slow_queries,
+            "threshold": total_queries * 0.1,
+            "message": f"{slow_queries} queries are taking longer than 100ms"
+        })
+        recommendations.append("Review and optimize slow queries")
+    
+    # Add positive trends if performance is good
+    if avg_latency < 20:
+        trends.append({
+            "type": "success",
+            "metric": "average_latency",
+            "value": avg_latency,
+            "threshold": 20,
+            "message": f"Excellent average query latency: {avg_latency:.1f}ms"
+        })
+    
+    return {
+        "trends": trends,
+        "insights": insights,
+        "recommendations": recommendations,
+        "summary": {
+            "total_queries": total_queries,
+            "avg_latency": round(avg_latency, 2),
+            "slow_queries": slow_queries,
+            "slow_percentage": round((slow_queries / total_queries) * 100, 1) if total_queries > 0 else 0
+        }
+    }
+
+
+@router.get("/export")
+async def export_metrics(
+    format: str = Query("json", description="Export format: json, csv"),
+    include_queries: bool = Query(True, description="Include query text in export"),
+    filters: Optional[str] = Query(None, description="JSON string of filters to apply")
+) -> Dict[str, Any]:
+    """Export metrics data in various formats."""
+    metrics = get_metrics_cache()
+    
+    if not metrics:
+        raise HTTPException(status_code=404, detail="No metrics available for export")
+    
+    # Convert to exportable format
+    export_data = []
+    for metric in metrics:
+        export_item = {
+            "query_hash": metric.query_hash,
+            "total_time": metric.total_time,
+            "calls": metric.calls,
+            "mean_time": metric.mean_time,
+            "rows": metric.rows,
+            "performance_score": metric.performance_score,
+            "time_percentage": metric.time_percentage
+        }
+        
+        if include_queries:
+            export_item["query_text"] = metric.query_text
+        
+        export_data.append(export_item)
+    
+    if format == "csv":
+        # Generate CSV content
+        import csv
+        import io
+        
+        output = io.StringIO()
+        if export_data:
+            writer = csv.DictWriter(output, fieldnames=export_data[0].keys())
+            writer.writeheader()
+            writer.writerows(export_data)
+        
+        return {
+            "format": "csv",
+            "data": output.getvalue(),
+            "filename": f"optischema_metrics_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+        }
+    
+    # Default JSON format
+    return {
+        "format": "json",
+        "data": export_data,
+        "filename": f"optischema_metrics_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json",
+        "total_records": len(export_data)
     }
 
 

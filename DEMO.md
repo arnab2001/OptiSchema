@@ -19,9 +19,10 @@ This command will:
 Open your browser and go to: **http://localhost:3000/dashboard**
 
 You should see:
-- Live performance metrics
-- AI-generated optimization suggestions
-- Real-time data updates
+- Live performance metrics with real-time updates
+- AI-generated optimization suggestions with confidence scoring
+- Interactive query analysis with execution plans
+- Professional UI with dark mode support
 
 ---
 
@@ -54,44 +55,61 @@ The demo environment includes:
 2. Point out the "Connected to: optischema" status
 3. Show the live metrics with real-time updates
 4. Highlight the performance metrics showing slow queries
-5. Show the AI-generated suggestions with impact levels
+5. Show the AI-generated suggestions with impact levels and confidence scores
 
 **Key Points**:
 - "This dashboard shows real-time performance data from your PostgreSQL database"
-- "The AI has identified several optimization opportunities"
-- "Each suggestion includes projected performance improvements"
+- "The AI has identified several optimization opportunities with confidence scoring"
+- "Each suggestion includes projected performance improvements and risk assessment"
 
 ### **Scenario 2: Query Analysis**
 **Goal**: Demonstrate detailed query analysis
 
 **Steps**:
 1. Click on the "Query Analysis" tab
-2. Show the list of slowest queries
+2. Show the list of slowest queries with performance badges
 3. Click on a query to see detailed analysis
-4. Point out the execution plan analysis
+4. Point out the execution plan analysis with bottleneck detection
 5. Show the AI explanation of the performance issue
 
 **Key Points**:
 - "This query is taking 2.3 seconds on average"
 - "The AI has identified that it's doing a sequential scan"
-- "Here's what's causing the performance issue..."
+- "Here's what's causing the performance issue and how to fix it..."
 
 ### **Scenario 3: AI Recommendations**
 **Goal**: Show AI-generated optimization suggestions
 
 **Steps**:
 1. Click on the "Optimizations" tab
-2. Show the list of AI-generated suggestions
+2. Show the list of AI-generated suggestions with confidence scores
 3. Click on a high-impact suggestion
 4. Show the detailed explanation and proposed fix
 5. Demonstrate the confidence score and projected savings
+6. Show the benchmark testing capability
 
 **Key Points**:
 - "The AI has analyzed your query patterns and identified optimization opportunities"
-- "This suggestion has a 95% confidence level"
+- "This suggestion has a 95% confidence level with low risk"
 - "Projected improvement: 80% faster query execution"
+- "We can test this optimization safely in our sandbox environment"
 
-### **Scenario 4: Live Query Replay**
+### **Scenario 4: Sandbox Testing**
+**Goal**: Demonstrate safe optimization testing
+
+**Steps**:
+1. Click on a recommendation with SQL fix
+2. Show the "Run Benchmark" button
+3. Demonstrate the before/after performance comparison
+4. Show the rollback SQL generation
+5. Highlight the safety of the sandbox environment
+
+**Key Points**:
+- "We can test optimizations safely without affecting your production database"
+- "The benchmark shows a 75% improvement in query performance"
+- "If needed, we can rollback changes with the generated SQL"
+
+### **Scenario 5: Live Query Replay**
 **Goal**: Show continuous data generation
 
 **Steps**:
@@ -103,7 +121,7 @@ The demo environment includes:
 **Key Points**:
 - "The system continuously monitors your database"
 - "New performance issues are detected automatically"
-- "The AI learns from your query patterns"
+- "The AI learns from your query patterns and adapts recommendations"
 
 ---
 
@@ -154,12 +172,14 @@ make restart-ui
 1. **Test everything**: Run `make demo` and verify all services are working
 2. **Check data**: Ensure the dashboard shows meaningful metrics
 3. **Prepare your story**: Have a clear narrative about the problem OptiSchema solves
+4. **Test AI responses**: Verify that AI suggestions are being generated
 
 ### **During the Demo**
 1. **Start with the problem**: "Database performance issues cost companies millions"
 2. **Show the solution**: "OptiSchema automatically identifies and fixes these issues"
-3. **Demonstrate value**: "This suggestion will save 80% in query time"
+3. **Demonstrate value**: "This suggestion will save 80% in query time with 95% confidence"
 4. **Keep it interactive**: Click around and show different features
+5. **Highlight safety**: Emphasize the sandbox testing and rollback capabilities
 
 ### **Demo Flow**
 1. **Problem Statement** (30 seconds)
@@ -168,18 +188,23 @@ make restart-ui
 
 2. **Solution Overview** (1 minute)
    - Show the dashboard with live data
-   - Point out the AI-generated suggestions
-   - Highlight the real-time monitoring
+   - Point out the AI-generated suggestions with confidence scores
+   - Highlight the real-time monitoring capabilities
 
 3. **Deep Dive** (2-3 minutes)
-   - Show detailed query analysis
-   - Demonstrate AI explanations
-   - Show projected improvements
+   - Show detailed query analysis with execution plans
+   - Demonstrate AI explanations and recommendations
+   - Show projected improvements and risk assessment
 
-4. **Value Proposition** (30 seconds)
-   - "Automated performance optimization"
-   - "AI-powered insights"
-   - "Real-time monitoring"
+4. **Safety & Testing** (1 minute)
+   - Demonstrate sandbox testing capabilities
+   - Show before/after performance comparison
+   - Highlight rollback functionality
+
+5. **Value Proposition** (30 seconds)
+   - "Automated performance optimization with AI-powered insights"
+   - "Safe testing environment with comprehensive benchmarking"
+   - "Real-time monitoring with actionable recommendations"
 
 ---
 
@@ -224,6 +249,14 @@ make logs-db
 docker compose restart postgres
 ```
 
+### **AI Not Responding**
+```bash
+# Check AI API keys in .env file
+# Ensure GEMINI_API_KEY or DEEPSEEK_API_KEY is set
+# Check backend logs for AI-related errors
+make logs-api
+```
+
 ---
 
 ## 📈 Expected Demo Results
@@ -232,7 +265,7 @@ docker compose restart postgres
 - **Total Queries**: 50,000+ (from seeded data)
 - **Average Response Time**: 100-500ms (varies)
 - **Top Queries**: Should show slow queries with high execution times
-- **Suggestions**: 3-5 AI-generated optimization recommendations
+- **Suggestions**: 3-5 AI-generated optimization recommendations with confidence scores
 
 ### **Performance Bottlenecks**
 - Missing indexes on `user_id` columns
@@ -244,28 +277,56 @@ docker compose restart postgres
 - Index recommendations for frequently queried columns
 - Query rewrite suggestions for N+1 problems
 - Configuration optimizations for PostgreSQL settings
+- Confidence scores ranging from 70-95%
+- Risk levels (low/medium/high) for each recommendation
+
+### **Benchmark Results**
+- Performance improvements ranging from 20-80%
+- Before/after execution time comparisons
+- Automatic rollback SQL generation
+- Safe testing in sandbox environment
 
 ---
 
 ## 🎯 Success Metrics
 
-A successful demo should demonstrate:
-- ✅ **Real-time data**: Dashboard shows live metrics
-- ✅ **AI insights**: Meaningful optimization suggestions
-- ✅ **Performance analysis**: Detailed query breakdowns
-- ✅ **Actionable recommendations**: Clear next steps for optimization
-- ✅ **Professional UI**: Clean, intuitive interface
+### **Technical Metrics**
+- **Dashboard Load Time**: < 3 seconds
+- **Real-time Updates**: < 2 seconds latency
+- **AI Response Time**: < 5 seconds for suggestions
+- **Benchmark Testing**: < 10 seconds for optimization testing
+
+### **User Experience Metrics**
+- **Intuitive Navigation**: Easy to find and understand features
+- **Responsive Design**: Works well on desktop and mobile
+- **Accessibility**: Keyboard navigation and screen reader support
+- **Professional Appearance**: Clean, modern UI with dark mode support
+
+### **Demo Effectiveness**
+- **Clear Value Proposition**: Audience understands the problem and solution
+- **Engaging Presentation**: Interactive elements keep audience attention
+- **Technical Credibility**: Demonstrates real technical capabilities
+- **Business Impact**: Shows measurable performance improvements
 
 ---
 
-## 🚀 Next Steps After Demo
+## 🚀 Advanced Demo Features
 
-1. **Collect feedback** on the demo experience
-2. **Identify specific use cases** for the audience
-3. **Discuss integration** with existing monitoring tools
-4. **Plan pilot deployment** if there's interest
-5. **Follow up** with technical details and pricing
+### **Multi-model AI Showcase**
+- Demonstrate switching between Gemini and DeepSeek
+- Show different AI response styles and capabilities
+- Highlight the flexibility of multi-model support
+
+### **Real-time Monitoring**
+- Show live query activity generation
+- Demonstrate real-time performance updates
+- Highlight the continuous monitoring capabilities
+
+### **Mobile Experience**
+- Show the responsive design on mobile devices
+- Demonstrate touch-friendly interface
+- Highlight mobile-optimized features
 
 ---
 
-This demo guide ensures you can confidently showcase OptiSchema's capabilities and value proposition to potential users and stakeholders. 
+**OptiSchema Demo** - Showcasing the future of database optimization with AI-powered insights and safe, actionable recommendations. 

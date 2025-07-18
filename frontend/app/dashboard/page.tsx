@@ -19,6 +19,10 @@ import DarkModeToggle from '@/components/DarkModeToggle'
 import DatabaseSwitcher from '@/components/DatabaseSwitcher'
 import QueryFilters from '@/components/QueryFilters'
 import { useKeyboardNav } from '@/hooks/useKeyboardNav'
+import QueryHeatMap from '@/components/QueryHeatMap'
+import LatencyTrendChart from '@/components/LatencyTrendChart'
+import ExportManager from '@/components/ExportManager'
+import { BarChart3, TrendingUp, Download, FileText, AlertTriangle } from 'lucide-react'
 
 // Helper function to filter business queries
 function isBusinessQuery(query: string) {
@@ -92,7 +96,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null)
   const [selectedQuery, setSelectedQuery] = useState<any>(null)
-  const [activeTab, setActiveTab] = useState<'overview' | 'queries' | 'suggestions'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'queries' | 'suggestions' | 'analytics'>('overview')
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
   const [showConnectionWizard, setShowConnectionWizard] = useState(false)
   const [connectionConfig, setConnectionConfig] = useState<any>(null)
@@ -104,6 +108,11 @@ export default function Dashboard() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const pageSize = 25
+
+  // Analytics state
+  const [historicalData, setHistoricalData] = useState<any[]>([])
+  const [trends, setTrends] = useState<any[]>([])
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('1h')
 
   // Filter state
   const [filters, setFilters] = useState({
@@ -122,13 +131,13 @@ export default function Dashboard() {
       if (selectedQuery) setSelectedQuery(null)
     },
     onArrowLeft: () => {
-      const tabs = ['overview', 'queries', 'suggestions']
+      const tabs = ['overview', 'queries', 'suggestions', 'analytics']
       const currentIndex = tabs.indexOf(activeTab)
       const newIndex = currentIndex > 0 ? currentIndex - 1 : tabs.length - 1
       setActiveTab(tabs[newIndex] as any)
     },
     onArrowRight: () => {
-      const tabs = ['overview', 'queries', 'suggestions']
+      const tabs = ['overview', 'queries', 'suggestions', 'analytics']
       const currentIndex = tabs.indexOf(activeTab)
       const newIndex = currentIndex < tabs.length - 1 ? currentIndex + 1 : 0
       setActiveTab(tabs[newIndex] as any)
@@ -166,16 +175,36 @@ export default function Dashboard() {
       }
     }
     
-    // For now, assume connected since we know the API is working
-    setConnected(true)
-    setCheckingStatus(false)
+    // Check actual connection status
+    checkStatus()
   }, [])
 
-  const handleConnect = (config: any) => {
+  const handleConnect = async (config: any) => {
     setConnectionConfig(config)
-    // In a real implementation, you would send this to the backend
-    // to establish the connection
-    console.log('Connecting to database:', config)
+    try {
+      // Send connection request to backend
+      const response = await fetch('/api/connection/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Connection established:', result)
+        // Check connection status to update UI
+        const statusRes = await fetch('/api/connection/status')
+        const statusData = await statusRes.json()
+        setConnected(!!statusData.connected)
+      } else {
+        const error = await response.json()
+        console.error('Connection failed:', error)
+        // You might want to show an error message to the user here
+      }
+    } catch (error) {
+      console.error('Failed to connect:', error)
+      // You might want to show an error message to the user here
+    }
   }
 
   // Only fetch metrics/suggestions if connected
@@ -307,6 +336,12 @@ export default function Dashboard() {
     fetchCompleteMetrics()
   }, [connected])
 
+  // Fetch analytics data when analytics tab is active
+  useEffect(() => {
+    if (!connected || activeTab !== 'analytics') return
+    fetchAnalyticsData()
+  }, [connected, activeTab, timeRange])
+
   const fetchMetrics = async () => {
     try {
       const response = await fetch('/api/metrics/raw')
@@ -331,6 +366,28 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Failed to fetch suggestions:', error)
     }
+  }
+
+  const fetchAnalyticsData = async () => {
+    try {
+      const [historicalRes, trendsRes] = await Promise.all([
+        fetch(`/api/metrics/historical?time_range=${timeRange}`),
+        fetch('/api/metrics/trends')
+      ])
+
+      const historicalData = await historicalRes.json()
+      const trendsData = await trendsRes.json()
+
+      setHistoricalData(historicalData.data || [])
+      setTrends(trendsData.trends || [])
+    } catch (error) {
+      console.error('Failed to fetch analytics data:', error)
+    }
+  }
+
+  const handleExport = (type: 'sql' | 'pdf', exportedData: any) => {
+    console.log(`${type.toUpperCase()} export completed:`, exportedData.length, 'items')
+    // Could add toast notification here
   }
 
   const loadMoreMetrics = async () => {
@@ -377,8 +434,14 @@ export default function Dashboard() {
 
   const getMostFrequentQueries = () => {
     if (!Array.isArray(metrics)) return []
-    return metrics
-      .filter((m: any) => isBusinessQuery(m.query_text)) // Filter to business queries only
+    return calculateTimePercentage(
+      metrics
+        .filter((m: any) => isBusinessQuery(m.query_text)) // Filter to business queries only
+        .map((m: any) => ({
+          ...m,
+          fingerprint: fingerprintQuery(m.query_text)
+        }))
+    )
       .sort((a: any, b: any) => b.calls - a.calls)
       .slice(0, 5)
   }
@@ -500,7 +563,8 @@ export default function Dashboard() {
             {[
               { id: 'overview', label: 'Overview', icon: '📊' },
               { id: 'queries', label: 'Query Analysis', icon: '🔍' },
-              { id: 'suggestions', label: 'Optimizations', icon: '⚡' }
+              { id: 'suggestions', label: 'Optimizations', icon: '⚡' },
+              { id: 'analytics', label: 'Analytics', icon: '📈' }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -665,7 +729,15 @@ export default function Dashboard() {
                   const type = suggestion.recommendation_type || suggestion.type
                   const confidence = suggestion.confidence_score || suggestion.confidence || 0
                   const estimatedSavings = suggestion.estimated_improvement_percent || suggestion.estimated_savings || 0
-                  const title = suggestion.title || 'Optimization Recommendation'
+                  
+                  // Clean up title - remove markdown formatting and numbered prefixes
+                  let title = suggestion.title || 'Optimization Recommendation'
+                  if (title.startsWith('#') || title.startsWith('##')) {
+                    title = title.replace(/^#+\s*/, '').trim()
+                  }
+                  // Remove numbered prefixes like "1. **Title**" or "1. Title"
+                  title = title.replace(/^\d+\.\s*\*\*?([^*]+)\*\*?/, '$1').trim()
+                  title = title.replace(/^\d+\.\s*/, '').trim()
                   
                   return (
                     <div
@@ -684,7 +756,11 @@ export default function Dashboard() {
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-3">
-                        {suggestion.description}
+                        {suggestion.description
+                          .replace(/^\d+\.\s*\*\*?([^*]+)\*\*?:\s*/, '') // Remove numbered prefixes like "2. **Description**:"
+                          .replace(/^\*\*([^*]+)\*\*:\s*/, '') // Remove markdown headers like "**Description**:"
+                          .replace(/^\*\*([^*]+)\*\*\s*/, '') // Remove markdown headers like "**Description**"
+                          .trim()}
                       </p>
                       <div className="mt-3 flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">
@@ -699,6 +775,150 @@ export default function Dashboard() {
                 }) : null}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-semibold">Advanced Analytics</h2>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <BarChart3 className="w-4 h-4" />
+                <span>Last updated: {new Date().toLocaleTimeString()}</span>
+              </div>
+            </div>
+
+            {/* Performance Trends */}
+            {trends.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-3">Performance Trends</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {trends.map((trend, index) => (
+                    <div
+                      key={index}
+                      className={`p-4 rounded-lg border ${
+                        trend.type === 'warning' 
+                          ? 'bg-yellow-50 border-yellow-200' 
+                          : 'bg-green-50 border-green-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        {trend.type === 'warning' ? (
+                          <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                        ) : (
+                          <TrendingUp className="w-4 h-4 text-green-600" />
+                        )}
+                        <span className="font-medium">{trend.metric.replace('_', ' ').toUpperCase()}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{trend.message}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Charts Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              {/* Query Performance Heat Map */}
+              <div className="bg-card border border-border rounded-lg p-6">
+                <QueryHeatMap 
+                  data={metrics} 
+                  onQueryClick={setSelectedQuery}
+                />
+              </div>
+
+              {/* Latency Trend Chart */}
+              <div className="bg-card border border-border rounded-lg p-6">
+                <LatencyTrendChart 
+                  data={historicalData}
+                  timeRange={timeRange}
+                  onTimeRangeChange={(range) => setTimeRange(range as any)}
+                />
+              </div>
+            </div>
+
+            {/* Export Section */}
+            <div className="bg-card border border-border rounded-lg p-6">
+              <ExportManager 
+                recommendations={suggestions}
+                metrics={metrics}
+                onExport={handleExport}
+              />
+            </div>
+
+            {/* Selected Query Details */}
+            {selectedQuery && (
+              <div className="bg-card border border-border rounded-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Selected Query Details</h3>
+                  <button
+                    onClick={() => setSelectedQuery(null)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Average Time</p>
+                    <p className="text-lg font-semibold">{selectedQuery.mean_time?.toFixed(2) || 'N/A'}ms</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Calls</p>
+                    <p className="text-lg font-semibold">{selectedQuery.calls?.toLocaleString() || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Performance Score</p>
+                    <p className="text-lg font-semibold">{selectedQuery.performance_score || 'N/A'}%</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Query Text:</p>
+                  <pre className="bg-muted p-3 rounded text-sm overflow-x-auto">
+                    {selectedQuery.query_text || 'No query text available'}
+                  </pre>
+                </div>
+              </div>
+            )}
+
+            {/* Metrics Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-card border border-border rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <BarChart3 className="w-5 h-5 text-blue-600" />
+                  <span className="text-sm font-medium text-muted-foreground">Total Queries</span>
+                </div>
+                <p className="text-2xl font-bold">{metrics?.length?.toLocaleString() || '0'}</p>
+              </div>
+              
+              <div className="bg-card border border-border rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-5 h-5 text-green-600" />
+                  <span className="text-sm font-medium text-muted-foreground">Avg Latency</span>
+                </div>
+                <p className="text-2xl font-bold">
+                  {metrics?.length > 0 
+                    ? (metrics.reduce((sum: number, m: any) => sum + (m.mean_time || 0), 0) / metrics.length).toFixed(1)
+                    : '0'}ms
+                </p>
+              </div>
+              
+              <div className="bg-card border border-border rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Download className="w-5 h-5 text-purple-600" />
+                  <span className="text-sm font-medium text-muted-foreground">Recommendations</span>
+                </div>
+                <p className="text-2xl font-bold">{suggestions.length}</p>
+              </div>
+              
+              <div className="bg-card border border-border rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="w-5 h-5 text-orange-600" />
+                  <span className="text-sm font-medium text-muted-foreground">Data Points</span>
+                </div>
+                <p className="text-2xl font-bold">{historicalData.length}</p>
+              </div>
+            </div>
           </div>
         )}
       </main>

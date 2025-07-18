@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL 14 with pg_stat_statements extension
   postgres:

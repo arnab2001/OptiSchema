@@ -21,24 +21,55 @@ ACTIVE_MODEL = settings.llm_provider
 
 # Prompt templates
 EXPLAIN_PLAN_PROMPT = """
-You are a PostgreSQL performance expert. Given the following execution plan (in JSON), explain the main performance bottlenecks and suggest optimizations in clear, actionable language for a database engineer. Be concise and specific.
+You are a PostgreSQL performance expert. Given the following execution plan (in JSON), explain the main performance bottlenecks and suggest optimizations in clear, actionable language for a database engineer.
+
+**Format your response in Markdown:**
+
+- **Key Issues**: List the main performance problems
+- **Root Causes**: Explain why these issues occur
+- **Optimizations**: Provide specific, actionable recommendations
+- **Expected Impact**: What improvements to expect
 
 Execution Plan JSON:
 {plan_json}
 """
 
 REWRITE_QUERY_PROMPT = """
-You are an expert SQL query optimizer. Given the following SQL query, rewrite it for better performance on PostgreSQL. Only output the optimized SQL, no explanations.
+You are an expert SQL query optimizer. Given the following SQL query, rewrite it for better performance on PostgreSQL.
+
+**Requirements:**
+- Only output the optimized SQL query
+- No explanations or markdown formatting
+- Ensure the query is syntactically correct
+- Preserve the original query's functionality
 
 Original Query:
 {sql}
 """
 
 RECOMMENDATION_PROMPT = """
-You are a PostgreSQL tuning assistant. Given the following query metrics and analysis, generate a specific, actionable recommendation to improve performance. Include a short title, a detailed description, and (if applicable) an SQL fix.
+You are a PostgreSQL tuning assistant. Given the following query metrics and analysis, generate a specific, actionable recommendation to improve performance. 
+
+**Format your response in Markdown:**
+
+**Title**: A short, descriptive title (no markdown formatting, no numbered prefixes)
+
+**Description**: Detailed explanation with:
+- Problem identification (clearly state whether using actual metrics or calculated scores)
+- Root cause analysis  
+- Specific steps to implement
+- Expected benefits
+
+**SQL Fix** (if applicable): The actual SQL to run (without markdown code blocks)
 
 Query Data:
 {query_data}
+
+**Important Guidelines:**
+1. If actual_metrics are available, use them for precise analysis and mention specific values (execution time, calls, cache hits, etc.)
+2. If no actual_metrics are available, clearly state "Based on query pattern analysis" and explain why the recommendation is made
+3. Always be transparent about the data source used for the analysis
+4. For SQL fixes, provide clean SQL without markdown formatting
 """
 
 async def call_gemini_api(prompt: str, max_tokens: int = 512) -> str:
@@ -165,6 +196,7 @@ async def generate_recommendation(query_data: Dict[str, Any]) -> Dict[str, Any]:
     prompt = RECOMMENDATION_PROMPT.format(query_data=query_data)
     try:
         content = await call_llm_api(prompt, max_tokens=512)
+        
         # Simple parsing: expect title, description, and SQL fix if present
         lines = content.split('\n')
         title = lines[0].strip() if lines else "Recommendation"
@@ -173,11 +205,17 @@ async def generate_recommendation(query_data: Dict[str, Any]) -> Dict[str, Any]:
         for line in lines:
             if line.strip().upper().startswith("SQL:"):
                 sql_fix = line.split(":", 1)[-1].strip()
+        
+        # Clean up title - remove any markdown formatting
+        if title.startswith('#') or title.startswith('##'):
+            title = title.lstrip('#').strip()
+        
         result = {
             "title": title,
             "description": description,
             "sql_fix": sql_fix
         }
+        
         set_cache(cache_key, json.dumps(result))
         logger.info(f"{ACTIVE_MODEL.title()} recommendation generated.")
         return result

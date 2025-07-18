@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Loader2, Play, CheckCircle, AlertTriangle, X } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface RecommendationModalProps {
   suggestion: any
@@ -59,7 +61,15 @@ export default function RecommendationModal({ suggestion, onClose, onApply }: Re
   const estimatedSavings = suggestion.estimated_improvement_percent || suggestion.estimated_savings || 0
   const description = suggestion.description || ''
   const sqlFix = suggestion.sql_fix || suggestion.sql_changes || null
-  const title = suggestion.title || 'Optimization Recommendation'
+  
+  // Clean up title - remove markdown formatting and numbered prefixes
+  let title = suggestion.title || 'Optimization Recommendation'
+  if (title.startsWith('#') || title.startsWith('##')) {
+    title = title.replace(/^#+\s*/, '').trim()
+  }
+  // Remove numbered prefixes like "1. **Title**" or "1. Title"
+  title = title.replace(/^\d+\.\s*\*\*?([^*]+)\*\*?/, '$1').trim()
+  title = title.replace(/^\d+\.\s*/, '').trim()
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -122,8 +132,10 @@ export default function RecommendationModal({ suggestion, onClose, onApply }: Re
             {/* Description */}
             <div>
               <span className="text-sm font-medium text-gray-600 block mb-2">Description</span>
-              <div className="text-sm text-gray-800 bg-gray-50 p-3 rounded-md whitespace-pre-wrap border border-gray-200">
-                {description}
+              <div className="text-sm text-gray-800 bg-gray-50 p-3 rounded-md border border-gray-200 prose prose-sm max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {description}
+                </ReactMarkdown>
               </div>
             </div>
 

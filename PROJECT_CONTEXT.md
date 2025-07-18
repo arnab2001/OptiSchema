@@ -1,121 +1,101 @@
-# 🎯 OptiSchema MVP - Project Context & Goals
+# 🎯 OptiSchema - Project Context & Goals
 
 ## 📋 Project Overview
 
 **OptiSchema** is an AI-assisted database tuning service that provides real-time PostgreSQL performance optimization. The system monitors database workloads, identifies performance bottlenecks, and delivers actionable, one-click fixes with projected cost/latency savings.
 
 ### Core Value Proposition
-- **Real-time monitoring** of PostgreSQL query performance
-- **AI-powered analysis** of execution plans and query patterns
-- **Actionable recommendations** with one-click application
-- **Cost-benefit projections** for each optimization
+- **Real-time monitoring** of PostgreSQL query performance with intelligent filtering
+- **Multi-model AI-powered analysis** of execution plans and query patterns
+- **Actionable recommendations** with confidence scoring and risk assessment
+- **Safe optimization testing** with sandbox environment and benchmarking
 
 ## 🏗️ High-Level Architecture
 
 ### 1. Backend (Python 3.12 + FastAPI)
-- **Database Poller**: Continuously monitors `pg_stat_statements` for query performance metrics
-- **Analysis Engine**: Runs `EXPLAIN (FORMAT JSON)` on high-cost queries and applies heuristics
-- **AI Integration**: Uses OpenAI GPT-4o for plain-English explanations and SQL rewrites
+- **Database Poller**: Continuously monitors `pg_stat_statements` with adaptive filtering for large datasets
+- **Analysis Engine**: Multi-model AI integration (Gemini 2.0 Flash, DeepSeek Chat) for query optimization
+- **Query Fingerprinting**: Intelligent query normalization and deduplication
+- **Execution Plan Analysis**: Deep PostgreSQL explain plan parsing with bottleneck detection
 - **Real-time Communication**: WebSocket server for live updates to frontend
+- **Caching System**: SQLite-based caching for AI responses to reduce costs and improve performance
 
-### 2. Frontend (Next.js 14 + Tailwind + ShadCN)
-- **Live Dashboard**: Real-time heatmap and performance metrics table
-- **Interactive Modals**: AI-powered recommendations with apply functionality
-- **WebSocket Integration**: Real-time updates without page refresh
+### 2. Frontend (Next.js 14 + TypeScript + Tailwind)
+- **Live Dashboard**: Real-time performance metrics with responsive design
+- **Interactive Query Analysis**: Detailed query breakdowns with execution plans
+- **AI Recommendations**: Interactive modals with confidence scoring and benchmarks
+- **Connection Management**: Database connection wizard with secure credential storage
+- **Dark Mode Support**: Full dark/light theme support with keyboard navigation
 
 ### 3. Infrastructure (Docker Compose)
 - **PostgreSQL 14**: Main database with `pg_stat_statements` extension
-- **API Service**: FastAPI backend container
-- **UI Service**: Next.js frontend container
-- **Optional Sandbox**: Isolated PostgreSQL instance for testing patches
+- **PostgreSQL Sandbox**: Isolated instance for safe optimization testing
+- **API Service**: FastAPI backend container with hot-reload
+- **UI Service**: Next.js frontend container with hot-reload
 
-## 🎯 MVP Goals & Success Criteria
+## 🎯 Current Status & Achievements
 
-### Primary Objectives
-1. **Real-time Monitoring**: Successfully poll and display PostgreSQL query metrics
-2. **AI Analysis**: Generate meaningful optimization suggestions using GPT-4o
-3. **One-click Application**: Apply optimizations in a sandbox environment
-4. **Cost Projections**: Provide estimated performance improvements
+### ✅ **Completed Features**
+1. **Real-time Monitoring**: Successfully polls and displays PostgreSQL query metrics
+2. **Multi-model AI Analysis**: Generates meaningful optimization suggestions using Gemini and DeepSeek
+3. **One-click Application**: Applies optimizations in a sandbox environment with benchmarking
+4. **Cost Projections**: Provides estimated performance improvements with confidence scoring
+5. **Advanced UI**: Professional dashboard with responsive design and interactive elements
+6. **Connection Management**: Secure database connection wizard with credential storage
+7. **Query Analysis**: Detailed execution plan analysis with bottleneck detection
+8. **Performance Benchmarking**: Before/after performance comparison with rollback support
 
-### Technical Milestones
-- [ ] **Monorepo Setup**: Clean project structure with Docker Compose
-- [ ] **Database Integration**: Reliable connection to PostgreSQL with metrics collection
-- [ ] **Analysis Pipeline**: Query fingerprinting, execution plan analysis, and heuristic detection
-- [ ] **AI Integration**: OpenAI API integration for explanations and query rewrites
-- [ ] **Real-time UI**: Live dashboard with WebSocket updates
-- [ ] **Sandbox Environment**: Safe testing of optimization patches
+### 🔄 **Current Development Focus**
+- **Performance Optimization**: Improving query analysis speed and accuracy
+- **UI Enhancements**: Adding more interactive features and visualizations
+- **Documentation**: Maintaining comprehensive guides and examples
 
 ## 📊 Key Features & Capabilities
 
 ### Database Monitoring
 - **Query Performance Tracking**: Monitor execution time, call frequency, and resource usage
-- **Hot Query Identification**: Automatically detect the most expensive queries
-- **Execution Plan Analysis**: Deep dive into query execution strategies
+- **Hot Query Identification**: Automatically detect the most expensive queries with smart filtering
+- **Execution Plan Analysis**: Deep dive into query execution strategies with bottleneck detection
+- **Business Query Filtering**: Excludes system queries to focus on application performance
 
 ### AI-Powered Analysis
+- **Multi-model Support**: Gemini 2.0 Flash and DeepSeek Chat for query optimization
 - **Plain-English Explanations**: Convert technical execution plans into understandable insights
 - **Query Rewrites**: Generate optimized SQL based on performance bottlenecks
 - **Index Recommendations**: Suggest strategic index additions for performance gains
+- **Confidence Scoring**: Risk assessment and confidence levels for each recommendation
 
 ### User Experience
 - **Live Dashboard**: Real-time visualization of database performance
-- **Interactive Recommendations**: Click-to-apply optimization suggestions
+- **Interactive Recommendations**: Click-to-apply optimization suggestions with benchmarking
 - **Performance Projections**: Estimated improvements with confidence metrics
+- **Responsive Design**: Mobile-optimized interface with dark mode support
+- **Keyboard Navigation**: Full keyboard support for power users
 
 ## 🔧 Technical Stack
 
 ### Backend
 - **Language**: Python 3.12
-- **Framework**: FastAPI
+- **Framework**: FastAPI with async/await patterns
 - **Database**: PostgreSQL 14 with `pg_stat_statements`
 - **Async**: `asyncpg` for database operations
-- **Analysis**: `pandas` + `sqlglot` for query processing
-- **AI**: OpenAI GPT-4o API
-- **Caching**: SQLite or `diskcache` for AI responses
+- **Analysis**: Multi-model AI integration (Gemini, DeepSeek)
+- **Caching**: SQLite-based caching for AI responses
+- **Real-time**: WebSocket server for live updates
 
 ### Frontend
 - **Framework**: Next.js 14 with TypeScript
-- **Styling**: Tailwind CSS + ShadCN components
+- **Styling**: Tailwind CSS with responsive design
 - **State Management**: SWR for data fetching
 - **Real-time**: WebSocket integration
-- **Charts**: `react-heatmap-grid` for performance visualization
+- **UI Components**: Custom components with dark mode support
+- **Accessibility**: Keyboard navigation and ARIA labels
 
 ### Infrastructure
 - **Containerization**: Docker Compose
 - **Development**: Hot-reload setup for both frontend and backend
 - **Data**: Persistent PostgreSQL volume
-
-## 🚀 Development Phases
-
-### Phase 0: Foundation (Current)
-- [ ] Monorepo scaffolding
-- [ ] Development environment setup
-- [ ] Docker Compose configuration
-- [ ] Basic project structure
-
-### Phase 1: Backend Core
-- [ ] FastAPI application setup
-- [ ] PostgreSQL connection and polling
-- [ ] Query metrics collection
-- [ ] Basic analysis engine
-
-### Phase 2: AI Integration
-- [ ] OpenAI API integration
-- [ ] Execution plan analysis
-- [ ] Query rewrite generation
-- [ ] Response caching
-
-### Phase 3: Frontend Development
-- [ ] Next.js application setup
-- [ ] Dashboard components
-- [ ] Real-time WebSocket integration
-- [ ] Interactive recommendation modals
-
-### Phase 4: Sandbox & Polish
-- [ ] Sandbox environment setup
-- [ ] One-click apply functionality
-- [ ] Performance projections
-- [ ] Demo data and documentation
+- **Sandbox**: Isolated PostgreSQL instance for testing
 
 ## 📈 Success Metrics
 
@@ -129,20 +109,22 @@
 - **Dashboard Load Time**: < 3s initial load
 - **Recommendation Quality**: > 80% accuracy in optimization suggestions
 - **Apply Success Rate**: > 95% successful patch applications
+- **Mobile Responsiveness**: Full functionality on mobile devices
 
-## 🔍 Key Challenges & Considerations
+## 🔍 Key Challenges & Solutions
 
 ### Technical Challenges
-1. **Query Fingerprinting**: Reliable identification of similar queries across different parameters
-2. **Execution Plan Analysis**: Accurate interpretation of PostgreSQL explain plans
-3. **AI Prompt Engineering**: Effective prompts for consistent, actionable recommendations
-4. **Real-time Performance**: Efficient WebSocket communication without overwhelming the client
+1. **Query Fingerprinting**: ✅ Reliable identification of similar queries across different parameters
+2. **Execution Plan Analysis**: ✅ Accurate interpretation of PostgreSQL explain plans
+3. **AI Prompt Engineering**: ✅ Effective prompts for consistent, actionable recommendations
+4. **Real-time Performance**: ✅ Efficient WebSocket communication without overwhelming the client
+5. **Large Dataset Handling**: ✅ Adaptive filtering and sampling for performance
 
 ### Business Considerations
-1. **Cost Management**: OpenAI API usage optimization
-2. **Scalability**: Architecture that can handle multiple database instances
-3. **Security**: Safe handling of database credentials and AI API keys
-4. **User Experience**: Intuitive interface for database administrators
+1. **Cost Management**: ✅ OpenAI API usage optimization through caching
+2. **Scalability**: ✅ Architecture that can handle multiple database instances
+3. **Security**: ✅ Safe handling of database credentials and AI API keys
+4. **User Experience**: ✅ Intuitive interface for database administrators
 
 ## 📚 Reference Materials
 
@@ -152,7 +134,8 @@
 - Performance tuning best practices
 
 ### AI/ML Resources
-- OpenAI GPT-4o API documentation
+- Google Gemini API documentation
+- DeepSeek API documentation
 - Prompt engineering best practices
 - Query optimization patterns
 
@@ -166,9 +149,9 @@
 
 ## 🎯 Next Steps
 
-1. **Immediate**: Set up monorepo structure and development environment
-2. **Short-term**: Implement basic PostgreSQL polling and metrics collection
-3. **Medium-term**: Integrate AI analysis and frontend dashboard
-4. **Long-term**: Polish user experience and prepare for demo
+1. **Immediate**: Continue performance optimization and UI enhancements
+2. **Short-term**: Add more advanced visualizations and reporting features
+3. **Medium-term**: Implement notification system and audit logging
+4. **Long-term**: Scale to support multiple database instances and teams
 
-This document will be updated as the project evolves and serves as our single source of truth for project goals, architecture decisions, and development priorities. 
+This document serves as our single source of truth for project goals, architecture decisions, and development priorities. It will be updated as the project evolves. 

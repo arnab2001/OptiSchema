@@ -212,4 +212,9 @@ def initialize_collector():
     """Initialize the collector and register connection change callback."""
     # Register callback for connection changes
     connection_manager.add_connection_change_callback(restart_collector)
-    logger.info("✅ Registered collector restart callback") 
+    logger.info("✅ Registered collector restart callback")
+    
+    # Start the collector task immediately if we have a connection
+    loop = asyncio.get_event_loop()
+    _collector_task = loop.create_task(poll_pg_stat())
+    logger.info("✅ Started initial pg_stat_statements polling task") 

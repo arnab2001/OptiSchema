@@ -14,7 +14,7 @@ interface ConnectionConfig {
 interface ConnectionWizardProps {
   isOpen: boolean
   onClose: () => void
-  onConnect: (config: ConnectionConfig) => void
+  onConnect: (config: ConnectionConfig) => void | Promise<void>
   currentConfig?: ConnectionConfig
 }
 
@@ -90,9 +90,9 @@ export default function ConnectionWizard({ isOpen, onClose, onConnect, currentCo
     }
   }
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     localStorage.setItem('optischema_connection', JSON.stringify(config))
-    onConnect(config)
+    await onConnect(config)
     onClose()
   }
 

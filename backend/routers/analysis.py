@@ -111,7 +111,7 @@ def calculate_basic_score(query_text: str) -> int:
 
 def detect_bottleneck_type(execution_plan: Optional[Dict[str, Any]], query_text: str) -> str:
     """
-    Detect the main bottleneck type based on execution plan.
+    Detect the main bottleneck type based on execution plan and query text.
     
     Args:
         execution_plan: The execution plan from EXPLAIN
@@ -120,39 +120,70 @@ def detect_bottleneck_type(execution_plan: Optional[Dict[str, Any]], query_text:
     Returns:
         Bottleneck type description
     """
-    if not execution_plan or execution_plan.get("error"):
-        return "unknown"
+    # First, try to detect based on query text patterns
+    query_upper = query_text.upper()
     
-    try:
-        metrics = extract_plan_metrics(execution_plan)
-        nodes = metrics.get('nodes', [])
-        
-        # Check for sequential scans
-        seq_scans = sum(1 for node in nodes if node.get('node_type') == 'Seq Scan')
-        if seq_scans > 0:
-            return "sequential_scan"
-        
-        # Check for large sorts
-        sorts = sum(1 for node in nodes if node.get('node_type') == 'Sort')
-        if sorts > 0:
-            return "sort_operation"
-        
-        # Check for slow execution
-        total_time = metrics.get('total_time', 0)
-        if total_time > 1000:
-            return "slow_execution"
-        elif total_time > 100:
-            return "moderate_execution"
-        
-        # Check for high cost
-        total_cost = metrics.get('total_cost', 0)
-        if total_cost > 10000:
-            return "high_cost"
-        
-        return "efficient"
-        
-    except Exception:
-        return "unknown"
+    # Check for cursor operations
+    if 'MOVE ALL' in query_upper or 'FETCH ALL' in query_upper:
+        return "cursor_inefficiency"
+    
+    # Check for SELECT *
+    if 'SELECT *' in query_upper:
+        return "inefficient_select"
+    
+    # Check for complex operations
+    if 'JOIN' in query_upper and query_upper.count('JOIN') > 2:
+        return "complex_joins"
+    
+    if 'GROUP BY' in query_upper and 'ORDER BY' in query_upper:
+        return "sort_operation"
+    
+    if 'DISTINCT' in query_upper:
+        return "distinct_operation"
+    
+    if 'LIKE' in query_upper and '%' in query_text:
+        return "pattern_matching"
+    
+    # If we have execution plan, use it for more detailed analysis
+    if execution_plan and not execution_plan.get("error"):
+        try:
+            metrics = extract_plan_metrics(execution_plan)
+            nodes = metrics.get('nodes', [])
+            
+            # Check for sequential scans
+            seq_scans = sum(1 for node in nodes if node.get('node_type') == 'Seq Scan')
+            if seq_scans > 0:
+                return "sequential_scan"
+            
+            # Check for large sorts
+            sorts = sum(1 for node in nodes if node.get('node_type') == 'Sort')
+            if sorts > 0:
+                return "sort_operation"
+            
+            # Check for slow execution
+            total_time = metrics.get('total_time', 0)
+            if total_time > 1000:
+                return "slow_execution"
+            elif total_time > 100:
+                return "moderate_execution"
+            
+            # Check for high cost
+            total_cost = metrics.get('total_cost', 0)
+            if total_cost > 10000:
+                return "high_cost"
+            
+            return "efficient"
+            
+        except Exception:
+            pass
+    
+    # Fallback based on query characteristics
+    if 'JOIN' in query_upper:
+        return "join_optimization"
+    elif 'WHERE' in query_upper:
+        return "filter_optimization"
+    else:
+        return "general_optimization"
 
 
 @router.get("/latest")
@@ -198,8 +229,13 @@ async def analyze_query(request: QueryAnalysisRequest) -> QueryAnalysisResponse:
                 response.execution_plan = {"error": str(e)}
         
         # Calculate performance score and detect bottlenecks
-        performance_score = calculate_performance_score(response.execution_plan, request.query)
-        bottleneck_type = detect_bottleneck_type(response.execution_plan, request.query)
+        try:
+            performance_score = calculate_performance_score(response.execution_plan, request.query)
+            bottleneck_type = detect_bottleneck_type(response.execution_plan, request.query)
+        except Exception as e:
+            logger.error(f"Error calculating performance metrics: {e}")
+            performance_score = 50  # Default score
+            bottleneck_type = "unknown"
         
         # Analyze the query
         analysis_result = {
@@ -223,10 +259,43 @@ async def analyze_query(request: QueryAnalysisRequest) -> QueryAnalysisResponse:
         # Generate recommendations
         try:
             from analysis.llm import generate_recommendation
+            from collector import get_metrics_cache
+            
+            # Try to find actual metrics for this query
+            try:
+                metrics_cache = get_metrics_cache()
+                actual_metrics = None
+                if metrics_cache and isinstance(metrics_cache, list):
+                    # Look for matching query in metrics cache
+                    query_hash = str(hash(request.query))
+                    for metric in metrics_cache:
+                        if hasattr(metric, 'query_hash') and metric.query_hash == query_hash:
+                            actual_metrics = {
+                                "total_time": metric.total_time,
+                                "calls": metric.calls,
+                                "mean_time": metric.mean_time,
+                                "stddev_time": metric.stddev_time,
+                                "rows": metric.rows,
+                                "shared_blks_hit": metric.shared_blks_hit,
+                                "shared_blks_read": metric.shared_blks_read,
+                                "shared_blks_written": metric.shared_blks_written,
+                                "temp_blks_read": metric.temp_blks_read,
+                                "temp_blks_written": metric.temp_blks_written,
+                                "blk_read_time": metric.blk_read_time,
+                                "blk_write_time": metric.blk_write_time,
+                                "time_percentage": metric.time_percentage,
+                                "performance_score": metric.performance_score
+                            }
+                            break
+            except Exception as e:
+                logger.error(f"Error looking up metrics: {e}")
+                actual_metrics = None
+            
             query_data = {
                 "query_text": request.query,
                 "analysis": analysis_result,
-                "execution_plan": response.execution_plan
+                "execution_plan": response.execution_plan,
+                "actual_metrics": actual_metrics  # Include actual metrics if available
             }
             recommendation = await generate_recommendation(query_data)
             response.recommendations = recommendation
