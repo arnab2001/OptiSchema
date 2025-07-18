@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Database, Settings, History, LogOut, CheckCircle, XCircle, Loader, ChevronDown, ChevronUp } from 'lucide-react'
+import { Database, Settings, History, LogOut, CheckCircle, XCircle, Loader, ChevronDown, ChevronUp, AlertTriangle, Activity, RefreshCw } from 'lucide-react'
 
 interface ConnectionConfig {
   host: string
@@ -42,6 +42,21 @@ export default function DatabaseSwitcher() {
     message: string
     details?: any
   } | null>(null)
+  const [pgStatInfo, setPgStatInfo] = useState<any>(null)
+  const [showPgStatManager, setShowPgStatManager] = useState(false)
+
+  // Fetch pg_stat_statements info
+  const fetchPgStatInfo = async () => {
+    try {
+      const response = await fetch('/api/connection/pg-stat-info')
+      if (response.ok) {
+        const data = await response.json()
+        setPgStatInfo(data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch pg_stat_statements info:', error)
+    }
+  }
 
   // Fetch current connection status
   const fetchConnectionStatus = async () => {
@@ -58,6 +73,7 @@ export default function DatabaseSwitcher() {
 
   useEffect(() => {
     fetchConnectionStatus()
+    fetchPgStatInfo()
   }, [])
 
   const testConnection = async () => {
@@ -99,28 +115,43 @@ export default function DatabaseSwitcher() {
         body: JSON.stringify(newConnection),
       })
       
+      console.log('Switch response status:', response.status)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
       const result = await response.json()
       console.log('Switch response:', result)
       
       if (result.success) {
+        console.log('Switch successful, refreshing connection status...')
+        
         // Refresh connection status
         await fetchConnectionStatus()
         setIsOpen(false)
         setTestResult(null)
         
-        // Show success message before reload
-        alert('Successfully connected to new database! Reloading dashboard...')
+        // Show success message and reload the page
+        console.log('Successfully connected to new database! Reloading dashboard...')
         
         // Reload the page to refresh all data
-        window.location.reload()
+        try {
+          window.location.reload()
+        } catch (reloadError) {
+          console.error('Failed to reload page:', reloadError)
+          // Fallback: redirect to dashboard
+          window.location.href = '/dashboard'
+        }
       } else {
+        console.log('Switch failed:', result)
         setTestResult(result)
       }
     } catch (error) {
       console.error('Switch connection error:', error)
       setTestResult({
         success: false,
-        message: 'Failed to switch connection'
+        message: `Failed to switch connection: ${error instanceof Error ? error.message : 'Unknown error'}`
       })
     } finally {
       setLoading(false)
@@ -150,6 +181,56 @@ export default function DatabaseSwitcher() {
   const loadFromHistory = (historyItem: ConnectionHistory) => {
     setNewConnection(historyItem.config)
     setTestResult(null)
+  }
+
+  const handleEnablePgStat = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch('/api/connection/enable-pg-stat', {
+        method: 'POST'
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        alert(result.message)
+        await fetchPgStatInfo() // Refresh info
+      } else {
+        const error = await response.json()
+        alert(`Failed to enable pg_stat_statements: ${error.detail}`)
+      }
+    } catch (error) {
+      console.error('Error enabling pg_stat_statements:', error)
+      alert('Error enabling pg_stat_statements')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResetPgStat = async () => {
+    if (!confirm('Are you sure you want to reset pg_stat_statements? This will clear all collected query statistics.')) {
+      return
+    }
+    
+    try {
+      setLoading(true)
+      const response = await fetch('/api/connection/reset-pg-stat', {
+        method: 'POST'
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        alert(result.message)
+        await fetchPgStatInfo() // Refresh info
+      } else {
+        const error = await response.json()
+        alert(`Failed to reset pg_stat_statements: ${error.detail}`)
+      }
+    } catch (error) {
+      console.error('Error resetting pg_stat_statements:', error)
+      alert('Error resetting pg_stat_statements')
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (!connectionStatus) {
@@ -218,6 +299,102 @@ export default function DatabaseSwitcher() {
                   <LogOut className="w-3 h-3" />
                   <span>Disconnect</span>
                 </button>
+              </div>
+            )}
+
+            {/* pg_stat_statements Manager */}
+            {connectionStatus.connected && (
+              <div className="border-t border-gray-200 pt-3 mb-4">
+                <button
+                  onClick={() => setShowPgStatManager(!showPgStatManager)}
+                  className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-800 w-full"
+                >
+                  <Activity className="w-4 h-4" />
+                  <span>pg_stat_statements Manager</span>
+                  {showPgStatManager ? <ChevronUp className="w-3 h-3 ml-auto" /> : <ChevronDown className="w-3 h-3 ml-auto" />}
+                </button>
+                
+                {showPgStatManager && (
+                  <div className="mt-3 bg-gray-50 rounded-lg p-3">
+                    {pgStatInfo ? (
+                      <div className="space-y-3">
+                        {/* Status */}
+                        <div className="flex items-center space-x-2">
+                          {pgStatInfo.enabled ? (
+                            <>
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                              <span className="text-sm font-medium text-green-800">Enabled</span>
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="w-4 h-4 text-red-600" />
+                              <span className="text-sm font-medium text-red-800">Disabled</span>
+                            </>
+                          )}
+                        </div>
+                        
+                        {/* Statistics */}
+                        {pgStatInfo.enabled && (
+                          <div className="text-xs text-gray-600 space-y-1">
+                            <div><strong>Total Queries:</strong> {pgStatInfo.total_queries?.toLocaleString() || 'Unknown'}</div>
+                            <div><strong>Max Statements:</strong> {pgStatInfo.max_statements?.toLocaleString() || 'Unknown'}</div>
+                            {pgStatInfo.large_dataset && (
+                              <div className="flex items-center space-x-1 text-amber-600">
+                                <AlertTriangle className="w-3 h-3" />
+                                <span>Large dataset detected</span>
+                              </div>
+                            )}
+                            {pgStatInfo.memory_warning && (
+                              <div className="flex items-center space-x-1 text-red-600">
+                                <AlertTriangle className="w-3 h-3" />
+                                <span>High memory usage</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* Actions */}
+                        <div className="flex space-x-2 pt-2">
+                          {!pgStatInfo.enabled && (
+                            <button
+                              onClick={handleEnablePgStat}
+                              disabled={loading}
+                              className="flex items-center space-x-1 px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 disabled:opacity-50"
+                            >
+                              <CheckCircle className="w-3 h-3" />
+                              <span>Enable</span>
+                            </button>
+                          )}
+                          
+                          <button
+                            onClick={() => fetchPgStatInfo()}
+                            disabled={loading}
+                            className="flex items-center space-x-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            <span>Refresh</span>
+                          </button>
+                          
+                          {pgStatInfo.enabled && (
+                            <button
+                              onClick={handleResetPgStat}
+                              disabled={loading}
+                              className="flex items-center space-x-1 px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 disabled:opacity-50"
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                              <span>Reset Stats</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <Loader className="w-4 h-4 animate-spin" />
+                        <span className="text-sm text-gray-600">Loading pg_stat_statements info...</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -331,25 +508,37 @@ export default function DatabaseSwitcher() {
 
               {/* Test Result */}
               {testResult && (
-                <div className={`p-2 rounded text-sm ${
+                <div className={`p-3 rounded-lg border-2 ${
                   testResult.success 
-                    ? 'bg-green-50 border border-green-200 text-green-800' 
-                    : 'bg-red-50 border border-red-200 text-red-800'
+                    ? 'bg-green-50 border-green-300 text-green-800' 
+                    : 'bg-red-50 border-red-300 text-red-800'
                 }`}>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 mb-2">
                     {testResult.success ? (
-                      <CheckCircle className="w-4 h-4" />
+                      <CheckCircle className="w-5 h-5" />
                     ) : (
-                      <XCircle className="w-4 h-4" />
+                      <XCircle className="w-5 h-5" />
                     )}
-                    <span>{testResult.message}</span>
+                    <span className="font-medium">{testResult.success ? 'Connection Test Successful!' : 'Connection Test Failed'}</span>
                   </div>
+                  <div className="text-sm mb-2">{testResult.message}</div>
                   {testResult.details && (
-                    <div className="mt-1 text-xs opacity-75">
+                    <div className="text-xs opacity-75 space-y-1">
                       {testResult.details.version && <div>Version: {testResult.details.version}</div>}
                       {testResult.details.pg_stat_statements_enabled !== undefined && (
                         <div>pg_stat_statements: {testResult.details.pg_stat_statements_enabled ? 'Enabled' : 'Disabled'}</div>
                       )}
+                    </div>
+                  )}
+                  {testResult.success && (
+                    <div className="mt-3 p-2 bg-green-100 rounded border border-green-200">
+                      <div className="flex items-center space-x-2 text-green-700">
+                        <Database className="w-4 h-4" />
+                        <span className="text-sm font-medium">Ready to Connect!</span>
+                      </div>
+                      <div className="text-xs text-green-600 mt-1">
+                        Click the "Connect" button below to switch to this database.
+                      </div>
                     </div>
                   )}
                 </div>
@@ -373,7 +562,12 @@ export default function DatabaseSwitcher() {
                 <button
                   onClick={switchConnection}
                   disabled={loading || !testResult?.success}
-                  className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 text-sm bg-primary text-white rounded hover:bg-primary-dark disabled:opacity-50"
+                  className={`flex-1 flex items-center justify-center space-x-1 px-3 py-2 text-sm rounded transition-colors ${
+                    testResult?.success 
+                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  } disabled:opacity-50`}
+                  title={!testResult?.success ? 'Test connection first' : 'Connect to this database'}
                 >
                   {loading ? (
                     <Loader className="w-4 h-4 animate-spin" />
@@ -383,6 +577,23 @@ export default function DatabaseSwitcher() {
                   <span>{loading ? 'Connecting...' : 'Connect'}</span>
                 </button>
               </div>
+              
+              {/* Connection Status */}
+              {testResult && (
+                <div className="text-xs text-gray-600 mt-2">
+                  {testResult.success ? (
+                    <div className="flex items-center space-x-1 text-green-600">
+                      <CheckCircle className="w-3 h-3" />
+                      <span>Connection test successful! Click "Connect" to switch to this database.</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-1 text-red-600">
+                      <XCircle className="w-3 h-3" />
+                      <span>Connection test failed. Please check your settings and try again.</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

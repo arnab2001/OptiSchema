@@ -54,16 +54,29 @@ export default function ConnectionWizard({ isOpen, onClose, onConnect, currentCo
       })
       const result = await response.json()
       if (response.ok) {
+        // Handle details object properly
+        let detailsText = ''
+        if (result.details) {
+          if (typeof result.details === 'object') {
+            // Convert object to readable text
+            detailsText = Object.entries(result.details)
+              .map(([key, value]) => `${key}: ${value}`)
+              .join(', ')
+          } else {
+            detailsText = result.details
+          }
+        }
+        
         setTestResult({
           success: true,
           message: 'Connection successful!',
-          details: result.details || ''
+          details: detailsText
         })
       } else {
         setTestResult({
           success: false,
           message: 'Connection failed',
-          details: result.error || result.details || 'Unknown error occurred'
+          details: result.error || (typeof result.details === 'string' ? result.details : 'Unknown error occurred')
         })
       }
     } catch (error) {
@@ -279,11 +292,15 @@ export default function ConnectionWizard({ isOpen, onClose, onConnect, currentCo
                 </span>
               </div>
               {testResult.details && (
-                <p className={`text-sm mt-1 ${
+                <div className={`text-sm mt-1 ${
                   testResult.success ? 'text-green-700' : 'text-red-700'
                 }`}>
-                  {testResult.details}
-                </p>
+                  {testResult.details.split(', ').map((detail, index) => (
+                    <p key={index} className="text-xs">
+                      {detail}
+                    </p>
+                  ))}
+                </div>
               )}
             </div>
           )}

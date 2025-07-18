@@ -2,10 +2,14 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 import asyncpg
 import asyncio
+import logging
 from typing import Optional, Dict, Any
 from datetime import datetime
 
 from connection_manager import connection_manager
+from db import get_pool
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -101,7 +105,8 @@ async def switch_database(request: ConnectionSwitchRequest):
         "port": int(request.port),
         "database": request.database,
         "user": request.username,
-        "password": request.password
+        "password": request.password,
+        "ssl": request.ssl
     }
     
     # Test the connection first
@@ -128,11 +133,21 @@ async def switch_database(request: ConnectionSwitchRequest):
 async def get_connection_status():
     """Get current connection status and history."""
     
-    current_config = connection_manager.get_current_config()
+    # Check if we have a connection and if it's actually healthy
+    is_healthy = await connection_manager.check_connection_health()
+    current_config = connection_manager.get_current_config() if is_healthy else None
     history = connection_manager.get_connection_history()
     
+    # If not connected, return empty history to keep things clean
+    if not is_healthy:
+        return ConnectionStatusResponse(
+            connected=False,
+            current_config=None,
+            connection_history=[]
+        )
+    
     return ConnectionStatusResponse(
-        connected=connection_manager.is_connected(),
+        connected=True,
         current_config=current_config,
         connection_history=history
     )
@@ -146,6 +161,17 @@ async def disconnect_database():
     return {
         "success": True,
         "message": "Disconnected from database"
+    }
+
+@router.post("/clear-history")
+async def clear_connection_history():
+    """Clear the connection history."""
+    
+    connection_manager.clear_connection_history()
+    
+    return {
+        "success": True,
+        "message": "Connection history cleared"
     }
 
 @router.post("/connect")
@@ -204,3 +230,100 @@ async def connect_database(request: ConnectionTestRequest):
     
     # Use the switch endpoint
     return await switch_database(switch_request) 
+
+@router.post("/enable-pg-stat")
+async def enable_pg_stat_statements() -> Dict[str, Any]:
+    """Enable pg_stat_statements extension if not already enabled."""
+    try:
+        config = connection_manager.get_current_config()
+        if not config:
+            raise HTTPException(status_code=400, detail="No active database connection")
+        
+        result = await connection_manager.enable_pg_stat_statements(config)
+        return result
+    except Exception as e:
+        logger.error(f"Error enabling pg_stat_statements: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to enable pg_stat_statements: {str(e)}")
+
+
+@router.get("/pg-stat-info")
+async def get_pg_stat_statements_info() -> Dict[str, Any]:
+    """Get pg_stat_statements status and statistics."""
+    try:
+        # Inline the pg_stat_statements info logic to avoid circular imports
+        pool = await get_pool()
+        if not pool:
+            return {"available": False, "error": "No database connection"}
+        
+        async with pool.acquire() as conn:
+            # Check if pg_stat_statements exists
+            exists = await conn.fetchval("""
+                SELECT EXISTS(
+                    SELECT 1 FROM pg_available_extensions 
+                    WHERE name = 'pg_stat_statements'
+                )
+            """)
+            
+            if not exists:
+                return {"available": False, "error": "pg_stat_statements extension not available"}
+            
+            # Check if it's enabled
+            enabled = await conn.fetchval("""
+                SELECT EXISTS(
+                    SELECT 1 FROM pg_extension 
+                    WHERE extname = 'pg_stat_statements'
+                )
+            """)
+            
+            if not enabled:
+                return {"available": True, "enabled": False, "error": "pg_stat_statements not enabled"}
+            
+            # Get statistics
+            total_queries = await conn.fetchval("""
+                SELECT COUNT(*) as total_queries 
+                FROM pg_stat_statements
+                WHERE query NOT ILIKE 'EXPLAIN%' AND query NOT ILIKE 'DEALLOCATE%'
+            """)
+            
+            # Get configuration
+            max_config = await conn.fetchval(
+                "SELECT setting FROM pg_settings WHERE name = 'pg_stat_statements.max'"
+            )
+            
+            SAMPLING_THRESHOLD = 100000
+            
+            return {
+                "available": True,
+                "enabled": True,
+                "total_queries": total_queries,
+                "max_statements": int(max_config) if max_config else None,
+                "large_dataset": total_queries > SAMPLING_THRESHOLD,
+                "memory_warning": total_queries > 200000
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting pg_stat_statements info: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get pg_stat_statements info: {str(e)}")
+
+
+@router.post("/reset-pg-stat")
+async def reset_pg_stat_statements() -> Dict[str, Any]:
+    """Reset pg_stat_statements data (clears all collected statistics)."""
+    try:
+        pool = await get_pool()
+        if not pool:
+            raise HTTPException(status_code=500, detail="No database connection available")
+        
+        async with pool.acquire() as conn:
+            # Check if user has permissions
+            await conn.execute("SELECT pg_stat_statements_reset()")
+            
+        logger.info("pg_stat_statements reset successfully")
+        return {
+            "success": True,
+            "message": "pg_stat_statements data has been reset",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error resetting pg_stat_statements: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to reset pg_stat_statements: {str(e)}") 

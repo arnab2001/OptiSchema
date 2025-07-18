@@ -18,7 +18,7 @@ from fastapi import APIRouter
 from config import settings
 from db import initialize_database, close_pool, health_check as db_health_check
 from models import HealthCheck, WebSocketMessage, APIResponse
-from collector import poll_pg_stat, get_metrics_cache
+from collector import poll_pg_stat, get_metrics_cache, initialize_collector
 from analysis.pipeline import start_analysis_scheduler
 
 # Configure logging
@@ -52,6 +52,9 @@ async def lifespan(app: FastAPI):
     
     # Test database connection
     await db_health_check()
+    
+    # Initialize the collector with connection change callback
+    initialize_collector()
     
     # Start the background polling task for query metrics
     loop = asyncio.get_event_loop()

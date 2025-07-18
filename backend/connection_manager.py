@@ -20,6 +20,19 @@ class ConnectionManager:
         self._current_config: Optional[Dict[str, Any]] = None
         self._connection_history: list = []
         self._lock = asyncio.Lock()
+        self._connection_change_callbacks: list = []
+    
+    def add_connection_change_callback(self, callback):
+        """Add a callback to be called when connection changes."""
+        self._connection_change_callbacks.append(callback)
+    
+    async def _notify_connection_change(self):
+        """Notify all callbacks that connection has changed."""
+        for callback in self._connection_change_callbacks:
+            try:
+                await callback()
+            except Exception as e:
+                logger.error(f"Error in connection change callback: {e}")
     
     async def connect(self, config: Dict[str, Any]) -> bool:
         """
@@ -99,6 +112,9 @@ class ConnectionManager:
                 if len(self._connection_history) > 10:
                     self._connection_history = self._connection_history[-10:]
                 
+                # Notify about connection change
+                await self._notify_connection_change()
+                
                 logger.info(f"Successfully connected to {config['host']}:{config['port']}/{config['database']}")
                 return True
                 
@@ -125,6 +141,10 @@ class ConnectionManager:
         """Get the connection history."""
         return self._connection_history.copy()
     
+    def clear_connection_history(self):
+        """Clear the connection history."""
+        self._connection_history.clear()
+    
     async def disconnect(self):
         """Disconnect from the current database."""
         async with self._lock:
@@ -132,6 +152,13 @@ class ConnectionManager:
                 await self._current_pool.close()
                 self._current_pool = None
                 self._current_config = None
+                
+                # Update the status of the last connection in history to 'disconnected'
+                if self._connection_history:
+                    self._connection_history[-1]['status'] = 'disconnected'
+                
+                # Notify about connection change (disconnection)
+                await self._notify_connection_change()
                 logger.info("Disconnected from database")
     
     async def test_connection(self, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -199,6 +226,24 @@ class ConnectionManager:
     def is_connected(self) -> bool:
         """Check if currently connected to a database."""
         return self._current_pool is not None
+    
+    async def check_connection_health(self) -> bool:
+        """Check if the current connection is actually healthy."""
+        if not self._current_pool:
+            return False
+        
+        try:
+            async with self._current_pool.acquire() as conn:
+                await conn.fetchval("SELECT 1")
+            return True
+        except Exception as e:
+            logger.error(f"Connection health check failed: {e}")
+            # Connection is broken, clear it
+            self._current_pool = None
+            self._current_config = None
+            # Notify about connection change (connection lost)
+            await self._notify_connection_change()
+            return False
 
 # Global connection manager instance
 connection_manager = ConnectionManager() 

@@ -73,4 +73,8 @@ def get_current_config() -> Optional[Dict[str, Any]]:
 
 def is_connected() -> bool:
     """Check if currently connected to a database."""
-    return connection_manager.is_connected() 
+    return connection_manager.is_connected()
+
+async def check_connection_health() -> bool:
+    """Check if the current connection is actually healthy."""
+    return await connection_manager.check_connection_health() 
